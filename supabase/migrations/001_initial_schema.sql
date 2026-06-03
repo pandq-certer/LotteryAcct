@@ -1,8 +1,8 @@
 -- LotteryAcct: Initial schema
 -- Betting records with parlay support
 
--- Enable UUID extension
-create extension if not exists "uuid-ossp";
+-- Enable pgcrypto for gen_random_uuid()
+create extension if not exists "pgcrypto";
 
 -- ═══════════════════════════════════════════
 -- PROFILES
@@ -38,7 +38,7 @@ create type public.bet_type as enum ('single', 'parlay');
 create type public.bet_category as enum ('football', 'basketball', 'tennis', 'other');
 
 create table public.betting_records (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   bet_type public.bet_type not null default 'single',
   category public.bet_category not null default 'football',
@@ -63,7 +63,7 @@ create policy "Users can CRUD own bets" on public.betting_records
 -- BET LEGS (for parlays)
 -- ═══════════════════════════════════════════
 create table public.bet_legs (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   record_id uuid not null references public.betting_records(id) on delete cascade,
   match_name text not null,
   play_type text not null default '',
