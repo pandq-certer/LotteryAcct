@@ -1,0 +1,2471 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>LotteryAcct 彩票记账</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════
+   CSS VARIABLES & RESET
+   ═══════════════════════════════════════════ */
+:root {
+  --bg-primary: #06090f;
+  --bg-secondary: #0c1220;
+  --bg-card: #111a2e;
+  --bg-card-hover: #152038;
+  --bg-elevated: #1a2540;
+  --bg-input: #0e1726;
+
+  --accent-green: #00e676;
+  --accent-green-dim: #00c853;
+  --accent-green-glow: rgba(0, 230, 118, 0.15);
+  --accent-green-glow-strong: rgba(0, 230, 118, 0.35);
+  --accent-red: #ff3d57;
+  --accent-red-dim: #d32f2f;
+  --accent-red-glow: rgba(255, 61, 87, 0.15);
+  --accent-amber: #ffab00;
+  --accent-amber-glow: rgba(255, 171, 0, 0.15);
+  --accent-blue: #448aff;
+  --accent-blue-glow: rgba(68, 138, 255, 0.15);
+
+  --text-primary: #e8ecf4;
+  --text-secondary: #8a96b0;
+  --text-muted: #4a5568;
+  --text-accent: var(--accent-green);
+
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-active: rgba(0, 230, 118, 0.4);
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  --font-display: 'Space Grotesk', monospace;
+  --font-body: 'Noto Sans SC', sans-serif;
+
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.3), 0 0 1px rgba(255, 255, 255, 0.05);
+  --shadow-glow: 0 0 30px rgba(0, 230, 118, 0.08);
+
+  --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ═══════════════════════════════════════════
+   APP SHELL
+   ═══════════════════════════════════════════ */
+.app-shell {
+  max-width: 430px;
+  margin: 0 auto;
+  min-height: 100vh;
+  position: relative;
+  background: var(--bg-primary);
+}
+
+/* Background atmosphere */
+.app-shell::before {
+  content: '';
+  position: fixed;
+  top: -120px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(0, 230, 118, 0.04) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ═══════════════════════════════════════════
+   HEADER / STATUS BAR
+   ═══════════════════════════════════════════ */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  padding: 12px 20px 8px;
+  background: linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-primary) 70%, transparent 100%);
+  backdrop-filter: blur(12px);
+}
+
+.header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.app-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logo-icon {
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, var(--accent-green) 0%, #00b060 100%);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  box-shadow: 0 0 16px rgba(0, 230, 118, 0.25);
+}
+
+.logo-text {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.logo-text span {
+  color: var(--accent-green);
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.header-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition);
+  font-size: 16px;
+}
+
+.header-btn:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+
+/* ═══════════════════════════════════════════
+   PAGE CONTENT AREA
+   ═══════════════════════════════════════════ */
+.page-content {
+  padding: 8px 20px 100px;
+  position: relative;
+  z-index: 1;
+}
+
+.page {
+  display: none;
+  animation: pageIn 0.4s ease-out;
+}
+
+.page.active {
+  display: block;
+}
+
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ═══════════════════════════════════════════
+   BOTTOM NAVIGATION
+   ═══════════════════════════════════════════ */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 430px;
+  background: rgba(8, 13, 22, 0.92);
+  backdrop-filter: blur(20px) saturate(1.5);
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  justify-content: space-around;
+  padding: 6px 0 calc(6px + env(safe-area-inset-bottom));
+  z-index: 200;
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: var(--transition);
+  position: relative;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 500;
+  min-width: 56px;
+}
+
+.nav-item .nav-icon {
+  font-size: 22px;
+  transition: var(--transition);
+  line-height: 1;
+}
+
+.nav-item.active {
+  color: var(--accent-green);
+}
+
+.nav-item.active .nav-icon {
+  transform: scale(1.1);
+}
+
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 3px;
+  background: var(--accent-green);
+  border-radius: 0 0 3px 3px;
+  box-shadow: 0 2px 8px rgba(0, 230, 118, 0.4);
+}
+
+.nav-item--add {
+  position: relative;
+  top: -8px;
+}
+
+.nav-item--add .nav-icon {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, var(--accent-green) 0%, #00b060 100%);
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: #000;
+  box-shadow: 0 4px 20px rgba(0, 230, 118, 0.35);
+  transform: none;
+}
+
+.nav-item--add.active .nav-icon {
+  transform: scale(1.08);
+}
+
+.nav-item--add.active::before {
+  display: none;
+}
+
+/* ═══════════════════════════════════════════
+   COMMON COMPONENTS
+   ═══════════════════════════════════════════ */
+
+/* Section Title */
+.section-title {
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-title::before {
+  content: '';
+  width: 3px;
+  height: 14px;
+  background: var(--accent-green);
+  border-radius: 2px;
+}
+
+/* Card */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  transition: var(--transition);
+}
+
+.card:hover {
+  background: var(--bg-card-hover);
+}
+
+/* Chip / Tag */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  gap: 4px;
+}
+
+.chip--green {
+  background: var(--accent-green-glow);
+  color: var(--accent-green);
+  border: 1px solid rgba(0, 230, 118, 0.2);
+}
+
+.chip--red {
+  background: var(--accent-red-glow);
+  color: var(--accent-red);
+  border: 1px solid rgba(255, 61, 87, 0.2);
+}
+
+.chip--amber {
+  background: var(--accent-amber-glow);
+  color: var(--accent-amber);
+  border: 1px solid rgba(255, 171, 0, 0.2);
+}
+
+.chip--blue {
+  background: var(--accent-blue-glow);
+  color: var(--accent-blue);
+  border: 1px solid rgba(68, 138, 255, 0.2);
+}
+
+.chip--muted {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+}
+
+/* Button */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+  border: none;
+  outline: none;
+}
+
+.btn--primary {
+  background: linear-gradient(135deg, var(--accent-green) 0%, #00b060 100%);
+  color: #000;
+  box-shadow: 0 4px 16px rgba(0, 230, 118, 0.25);
+}
+
+.btn--primary:hover {
+  box-shadow: 0 6px 24px rgba(0, 230, 118, 0.4);
+  transform: translateY(-1px);
+}
+
+.btn--secondary {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+}
+
+.btn--secondary:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-active);
+}
+
+.btn--danger {
+  background: var(--accent-red-glow);
+  color: var(--accent-red);
+  border: 1px solid rgba(255, 61, 87, 0.2);
+}
+
+/* Input */
+.input-group {
+  margin-bottom: 16px;
+}
+
+.input-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+  display: block;
+  letter-spacing: 0.02em;
+}
+
+.input-field {
+  width: 100%;
+  padding: 12px 14px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 14px;
+  transition: var(--transition);
+  outline: none;
+}
+
+.input-field:focus {
+  border-color: var(--accent-green);
+  box-shadow: 0 0 0 3px rgba(0, 230, 118, 0.1);
+}
+
+.input-field::placeholder {
+  color: var(--text-muted);
+}
+
+/* Stagger animation utility */
+.stagger > * {
+  opacity: 0;
+  animation: staggerIn 0.5s ease-out forwards;
+}
+.stagger > *:nth-child(1) { animation-delay: 0.05s; }
+.stagger > *:nth-child(2) { animation-delay: 0.1s; }
+.stagger > *:nth-child(3) { animation-delay: 0.15s; }
+.stagger > *:nth-child(4) { animation-delay: 0.2s; }
+.stagger > *:nth-child(5) { animation-delay: 0.25s; }
+.stagger > *:nth-child(6) { animation-delay: 0.3s; }
+.stagger > *:nth-child(7) { animation-delay: 0.35s; }
+.stagger > *:nth-child(8) { animation-delay: 0.4s; }
+
+@keyframes staggerIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Pulse glow animation */
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 20px rgba(0, 230, 118, 0.1); }
+  50% { box-shadow: 0 0 30px rgba(0, 230, 118, 0.25); }
+}
+
+/* Number counter animation */
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-count {
+  animation: countUp 0.6s ease-out;
+}
+
+/* ═══════════════════════════════════════════
+   PAGE 1: DASHBOARD
+   ═══════════════════════════════════════════ */
+
+/* Greeting */
+.greeting {
+  margin-bottom: 20px;
+}
+
+.greeting-text {
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1.3;
+}
+
+.greeting-sub {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+/* P&L Summary Cards */
+.pnl-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.pnl-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  position: relative;
+  overflow: hidden;
+  transition: var(--transition);
+}
+
+.pnl-card:hover {
+  background: var(--bg-card-hover);
+}
+
+.pnl-card--main {
+  grid-column: 1 / -1;
+  background: linear-gradient(135deg, rgba(0, 230, 118, 0.08) 0%, rgba(0, 176, 96, 0.04) 100%);
+  border-color: rgba(0, 230, 118, 0.15);
+  animation: pulseGlow 3s ease-in-out infinite;
+}
+
+.pnl-card__label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.pnl-card__value {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.pnl-card--main .pnl-card__value {
+  font-size: 36px;
+}
+
+.pnl-card__value--positive {
+  color: var(--accent-green);
+}
+
+.pnl-card__value--negative {
+  color: var(--accent-red);
+}
+
+.pnl-card__change {
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.pnl-card__change--positive { color: var(--accent-green); }
+.pnl-card__change--negative { color: var(--accent-red); }
+
+/* Decorative corner glow */
+.pnl-card--main::after {
+  content: '';
+  position: absolute;
+  top: -20px;
+  right: -20px;
+  width: 80px;
+  height: 80px;
+  background: radial-gradient(circle, rgba(0, 230, 118, 0.12) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* Trend Chart */
+.trend-section {
+  margin-bottom: 20px;
+}
+
+.trend-chart {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.trend-chart__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.trend-chart__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.trend-chart__period {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.trend-chart__canvas {
+  width: 100%;
+  height: 120px;
+  position: relative;
+}
+
+/* SVG chart styles */
+.chart-grid line {
+  stroke: var(--border-subtle);
+  stroke-width: 0.5;
+}
+
+.chart-line {
+  fill: none;
+  stroke: var(--accent-green);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.chart-area {
+  fill: url(#greenGradient);
+}
+
+.chart-dot {
+  fill: var(--accent-green);
+  filter: drop-shadow(0 0 4px rgba(0, 230, 118, 0.5));
+}
+
+.chart-label {
+  fill: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: 10px;
+}
+
+/* Recent Records */
+.recent-section {
+  margin-bottom: 16px;
+}
+
+.recent-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.recent-header .see-all {
+  font-size: 12px;
+  color: var(--accent-green);
+  cursor: pointer;
+  font-weight: 500;
+  background: none;
+  border: none;
+}
+
+.record-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  margin-bottom: 8px;
+  transition: var(--transition);
+  cursor: pointer;
+}
+
+.record-item:hover {
+  background: var(--bg-card-hover);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.record-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.record-icon--football { background: rgba(0, 230, 118, 0.1); }
+.record-icon--basketball { background: rgba(255, 171, 0, 0.1); }
+.record-icon--tennis { background: rgba(68, 138, 255, 0.1); }
+
+.record-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.record-match {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.record-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.record-pnl {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.record-pnl__value {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.record-pnl__value--positive { color: var(--accent-green); }
+.record-pnl__value--negative { color: var(--accent-red); }
+
+.record-pnl__odds {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--font-display);
+}
+
+/* ═══════════════════════════════════════════
+   PAGE 2: ADD BET
+   ═══════════════════════════════════════════ */
+.page-title {
+  font-size: 20px;
+  font-weight: 900;
+  margin-bottom: 20px;
+}
+
+/* Bet Type Selector */
+.bet-type-selector {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.bet-type-btn {
+  flex: 1;
+  padding: 10px;
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+  text-align: center;
+}
+
+.bet-type-btn.active {
+  background: var(--accent-green-glow);
+  border-color: var(--accent-green);
+  color: var(--accent-green);
+}
+
+/* Photo Upload */
+.photo-upload {
+  background: var(--bg-card);
+  border: 2px dashed var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  text-align: center;
+  margin-bottom: 20px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.photo-upload:hover {
+  border-color: var(--accent-green);
+  background: var(--accent-green-glow);
+}
+
+.photo-upload__icon {
+  font-size: 36px;
+  margin-bottom: 8px;
+  opacity: 0.6;
+}
+
+.photo-upload__text {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.photo-upload__hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.photo-upload__divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.photo-upload__divider::before,
+.photo-upload__divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-subtle);
+}
+
+/* OCR Preview */
+.ocr-preview {
+  background: var(--bg-card);
+  border: 1px solid rgba(0, 230, 118, 0.2);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+  margin-bottom: 20px;
+  display: none;
+}
+
+.ocr-preview.show {
+  display: block;
+  animation: countUp 0.3s ease-out;
+}
+
+.ocr-preview__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.ocr-preview__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-green);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ocr-preview__dismiss {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.ocr-preview__fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.ocr-field {
+  font-size: 12px;
+}
+
+.ocr-field__label {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.ocr-field__value {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* Category Selector */
+.category-selector {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.category-chip {
+  padding: 8px 14px;
+  border-radius: var(--radius-full);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+  font-family: var(--font-body);
+}
+
+.category-chip.active {
+  background: var(--accent-green-glow);
+  border-color: var(--accent-green);
+  color: var(--accent-green);
+}
+
+/* Parlay Legs */
+.parlay-legs {
+  margin-bottom: 20px;
+}
+
+.parlay-leg {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  margin-bottom: 8px;
+  position: relative;
+}
+
+.parlay-leg__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.parlay-leg__number {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-green);
+  font-family: var(--font-display);
+}
+
+.parlay-leg__remove {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px;
+}
+
+.parlay-leg__fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.parlay-leg__field .input-field {
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.add-leg-btn {
+  width: 100%;
+  padding: 10px;
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 12px;
+  cursor: pointer;
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.add-leg-btn:hover {
+  border-color: var(--accent-green);
+  color: var(--accent-green);
+}
+
+/* Submit area */
+.submit-area {
+  margin-top: 24px;
+}
+
+.submit-area .btn {
+  width: 100%;
+  padding: 14px;
+  font-size: 15px;
+}
+
+/* ═══════════════════════════════════════════
+   PAGE 3: HISTORY
+   ═══════════════════════════════════════════ */
+
+/* Filter Bar */
+.filter-bar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.filter-bar::-webkit-scrollbar { display: none; }
+
+.filter-chip {
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+  white-space: nowrap;
+  font-family: var(--font-body);
+}
+
+.filter-chip.active {
+  background: var(--accent-green-glow);
+  border-color: var(--accent-green);
+  color: var(--accent-green);
+}
+
+/* Date Range Selector */
+.date-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.date-range__icon {
+  color: var(--text-muted);
+  font-size: 16px;
+}
+
+.date-range__text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+.date-range__arrow {
+  color: var(--text-muted);
+}
+
+/* History Record Item (extended) */
+.history-item {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+  margin-bottom: 10px;
+  transition: var(--transition);
+  cursor: pointer;
+}
+
+.history-item:hover {
+  background: var(--bg-card-hover);
+}
+
+.history-item__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.history-item__match {
+  font-size: 14px;
+  font-weight: 600;
+  flex: 1;
+  margin-right: 8px;
+}
+
+.history-item__bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.history-item__tags {
+  display: flex;
+  gap: 4px;
+}
+
+.history-item__pnl {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* Detail Modal */
+.detail-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 300;
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.detail-overlay.show {
+  display: flex;
+}
+
+.detail-sheet {
+  width: 100%;
+  max-width: 430px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  padding: 20px;
+  animation: slideUp 0.35s ease-out;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.detail-sheet__handle {
+  width: 36px;
+  height: 4px;
+  background: var(--text-muted);
+  border-radius: 2px;
+  margin: 0 auto 16px;
+}
+
+.detail-sheet__title {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.detail-row__label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.detail-row__value {
+  font-size: 13px;
+  font-weight: 600;
+  text-align: right;
+}
+
+.detail-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.detail-actions .btn {
+  flex: 1;
+}
+
+/* ═══════════════════════════════════════════
+   PAGE 4: ANALYTICS
+   ═══════════════════════════════════════════ */
+
+/* Stats Grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px 10px;
+  text-align: center;
+}
+
+.stat-card__value {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.stat-card__label {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  font-weight: 500;
+}
+
+/* Chart Section */
+.chart-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.chart-section__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.chart-section__title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.chart-section__action {
+  font-size: 11px;
+  color: var(--accent-green);
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-family: var(--font-body);
+}
+
+/* Heatmap */
+.heatmap {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+  margin-top: 10px;
+}
+
+.heatmap__cell {
+  aspect-ratio: 1;
+  border-radius: 3px;
+  transition: var(--transition);
+  position: relative;
+  cursor: pointer;
+}
+
+.heatmap__cell:hover {
+  transform: scale(1.2);
+  z-index: 1;
+}
+
+.heatmap__labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+
+.heatmap__label {
+  font-size: 9px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* Donut Chart */
+.donut-chart {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.donut-chart__svg {
+  width: 100px;
+  height: 100px;
+  flex-shrink: 0;
+}
+
+.donut-chart__legend {
+  flex: 1;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.legend-item__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.legend-item__label {
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+.legend-item__value {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Bar chart */
+.bar-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 100px;
+  padding-top: 10px;
+}
+
+.bar-chart__bar {
+  flex: 1;
+  border-radius: 4px 4px 0 0;
+  position: relative;
+  transition: var(--transition);
+  cursor: pointer;
+  min-width: 0;
+}
+
+.bar-chart__bar:hover {
+  opacity: 0.8;
+}
+
+.bar-chart__bar-label {
+  position: absolute;
+  bottom: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  font-family: var(--font-display);
+}
+
+/* ═══════════════════════════════════════════
+   PAGE 5: SETTINGS
+   ═══════════════════════════════════════════ */
+
+/* User Profile Card */
+.profile-card {
+  background: linear-gradient(135deg, var(--bg-card) 0%, rgba(0, 230, 118, 0.05) 100%);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  padding: 24px;
+  text-align: center;
+  margin-bottom: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.profile-card::before {
+  content: '';
+  position: absolute;
+  top: -40px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 200px;
+  height: 100px;
+  background: radial-gradient(ellipse, rgba(0, 230, 118, 0.08) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.profile-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, var(--accent-green) 0%, #00b060 100%);
+  margin: 0 auto 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  color: #000;
+  font-weight: 700;
+  box-shadow: 0 4px 20px rgba(0, 230, 118, 0.25);
+}
+
+.profile-name {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.profile-email {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.profile-stats {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.profile-stat {
+  text-align: center;
+}
+
+.profile-stat__value {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.profile-stat__label {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
+/* Settings List */
+.settings-group {
+  margin-bottom: 16px;
+}
+
+.settings-group__title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
+  padding: 0 4px;
+}
+
+.settings-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.settings-item:first-child {
+  border-radius: var(--radius-md) var(--radius-md) 2px 2px;
+}
+
+.settings-item:last-child {
+  border-radius: 2px 2px var(--radius-md) var(--radius-md);
+  margin-bottom: 0;
+}
+
+.settings-item:only-child {
+  border-radius: var(--radius-md);
+}
+
+.settings-item:hover {
+  background: var(--bg-card-hover);
+}
+
+.settings-item__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.settings-item__icon--green { background: var(--accent-green-glow); color: var(--accent-green); }
+.settings-item__icon--amber { background: var(--accent-amber-glow); color: var(--accent-amber); }
+.settings-item__icon--blue { background: var(--accent-blue-glow); color: var(--accent-blue); }
+.settings-item__icon--red { background: var(--accent-red-glow); color: var(--accent-red); }
+.settings-item__icon--muted { background: rgba(255, 255, 255, 0.04); color: var(--text-secondary); }
+
+.settings-item__content {
+  flex: 1;
+}
+
+.settings-item__title {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.settings-item__subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
+.settings-item__arrow {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* Version footer */
+.settings-footer {
+  text-align: center;
+  padding: 20px 0;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.settings-footer__version {
+  font-family: var(--font-display);
+}
+
+/* ═══════════════════════════════════════════
+   RESPONSIVE & UTILITY
+   ═══════════════════════════════════════════ */
+.mt-8 { margin-top: 8px; }
+.mt-12 { margin-top: 12px; }
+.mt-16 { margin-top: 16px; }
+.mt-20 { margin-top: 20px; }
+.mb-8 { margin-bottom: 8px; }
+.mb-12 { margin-bottom: 12px; }
+.mb-16 { margin-bottom: 16px; }
+.mb-20 { margin-bottom: 20px; }
+
+.text-positive { color: var(--accent-green); }
+.text-negative { color: var(--accent-red); }
+.text-muted { color: var(--text-muted); }
+.text-accent { color: var(--accent-green); }
+
+.font-mono { font-family: var(--font-display); }
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- ═══════ HEADER ═══════ -->
+  <header class="app-header">
+    <div class="header-row">
+      <div class="app-logo">
+        <div class="logo-icon">&#9830;</div>
+        <div class="logo-text">Lottery<span>Acct</span></div>
+      </div>
+      <div class="header-actions">
+        <button class="header-btn" title="通知">&#128276;</button>
+        <button class="header-btn" title="搜索">&#128269;</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ═══════ PAGE CONTENT ═══════ -->
+  <main class="page-content">
+
+    <!-- ═══════════════════════════════════
+         PAGE 1: DASHBOARD
+         ═══════════════════════════════════ -->
+    <div class="page active" id="page-dashboard">
+      <div class="greeting stagger">
+        <div class="greeting-text">下午好，阿强 &#128075;</div>
+        <div class="greeting-sub">2026年6月3日 周三</div>
+      </div>
+
+      <!-- P&L Cards -->
+      <div class="pnl-summary stagger">
+        <div class="pnl-card pnl-card--main">
+          <div class="pnl-card__label">本月盈亏</div>
+          <div class="pnl-card__value pnl-card__value--positive animate-count">+¥3,280</div>
+          <div class="pnl-card__change pnl-card__change--positive">&#9650; 12.5% 较上月</div>
+        </div>
+        <div class="pnl-card">
+          <div class="pnl-card__label">胜率</div>
+          <div class="pnl-card__value text-positive">64.2%</div>
+          <div class="pnl-card__change pnl-card__change--positive">&#9650; 3.1%</div>
+        </div>
+        <div class="pnl-card">
+          <div class="pnl-card__label">投注笔数</div>
+          <div class="pnl-card__value">87</div>
+          <div class="pnl-card__change" style="color: var(--text-muted);">本月</div>
+        </div>
+      </div>
+
+      <!-- Trend Chart -->
+      <div class="trend-section">
+        <div class="section-title">近7日趋势</div>
+        <div class="trend-chart">
+          <div class="trend-chart__header">
+            <span class="trend-chart__title">累计盈亏</span>
+            <span class="trend-chart__period">5/28 - 6/3</span>
+          </div>
+          <div class="trend-chart__canvas">
+            <svg width="100%" height="120" viewBox="0 0 370 120" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="greenGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="rgba(0, 230, 118, 0.2)"/>
+                  <stop offset="100%" stop-color="rgba(0, 230, 118, 0)"/>
+                </linearGradient>
+              </defs>
+              <!-- Grid lines -->
+              <line x1="0" y1="30" x2="370" y2="30" stroke="rgba(255,255,255,0.04)" stroke-width="0.5"/>
+              <line x1="0" y1="60" x2="370" y2="60" stroke="rgba(255,255,255,0.04)" stroke-width="0.5"/>
+              <line x1="0" y1="90" x2="370" y2="90" stroke="rgba(255,255,255,0.04)" stroke-width="0.5"/>
+              <!-- Area fill -->
+              <path d="M0,80 L62,65 L124,70 L185,45 L247,30 L308,35 L370,15 L370,120 L0,120 Z" class="chart-area"/>
+              <!-- Line -->
+              <polyline points="0,80 62,65 124,70 185,45 247,30 308,35 370,15" class="chart-line"/>
+              <!-- Dots -->
+              <circle cx="0" cy="80" r="3" class="chart-dot"/>
+              <circle cx="62" cy="65" r="3" class="chart-dot"/>
+              <circle cx="124" cy="70" r="3" class="chart-dot"/>
+              <circle cx="185" cy="45" r="3" class="chart-dot"/>
+              <circle cx="247" cy="30" r="3" class="chart-dot"/>
+              <circle cx="308" cy="35" r="3" class="chart-dot"/>
+              <circle cx="370" cy="15" r="4" class="chart-dot" style="filter: drop-shadow(0 0 6px rgba(0,230,118,0.6))"/>
+              <!-- Labels -->
+              <text x="0" y="115" class="chart-label">5/28</text>
+              <text x="62" y="115" class="chart-label">5/29</text>
+              <text x="120" y="115" class="chart-label">5/30</text>
+              <text x="178" y="115" class="chart-label">5/31</text>
+              <text x="240" y="115" class="chart-label">6/1</text>
+              <text x="301" y="115" class="chart-label">6/2</text>
+              <text x="356" y="115" class="chart-label">6/3</text>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Records -->
+      <div class="recent-section">
+        <div class="recent-header">
+          <div class="section-title" style="margin-bottom: 0;">最近投注</div>
+          <button class="see-all">查看全部 &rsaquo;</button>
+        </div>
+        <div class="stagger">
+          <div class="record-item">
+            <div class="record-icon record-icon--football">&#9917;</div>
+            <div class="record-info">
+              <div class="record-match">皇马 vs 巴萨</div>
+              <div class="record-meta">
+                <span class="chip chip--green" style="padding: 1px 6px; font-size: 9px;">胜</span>
+                <span>足球 · 让球</span>
+              </div>
+            </div>
+            <div class="record-pnl">
+              <div class="record-pnl__value record-pnl__value--positive">+¥580</div>
+              <div class="record-pnl__odds">@ 1.85</div>
+            </div>
+          </div>
+          <div class="record-item">
+            <div class="record-icon record-icon--basketball">&#127936;</div>
+            <div class="record-info">
+              <div class="record-match">湖人 vs 勇士</div>
+              <div class="record-meta">
+                <span class="chip chip--red" style="padding: 1px 6px; font-size: 9px;">负</span>
+                <span>篮球 · 大小分</span>
+              </div>
+            </div>
+            <div class="record-pnl">
+              <div class="record-pnl__value record-pnl__value--negative">-¥320</div>
+              <div class="record-pnl__odds">@ 1.72</div>
+            </div>
+          </div>
+          <div class="record-item">
+            <div class="record-icon record-icon--football">&#9917;</div>
+            <div class="record-info">
+              <div class="record-match">曼城 vs 利物浦</div>
+              <div class="record-meta">
+                <span class="chip chip--green" style="padding: 1px 6px; font-size: 9px;">胜</span>
+                <span>足球 · 独赢</span>
+              </div>
+            </div>
+            <div class="record-pnl">
+              <div class="record-pnl__value record-pnl__value--positive">+¥420</div>
+              <div class="record-pnl__odds">@ 2.10</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════
+         PAGE 2: ADD BET
+         ═══════════════════════════════════ -->
+    <div class="page" id="page-add">
+      <div class="page-title">添加投注</div>
+
+      <!-- Bet Type Selector -->
+      <div class="input-group">
+        <label class="input-label">投注类型</label>
+        <div class="bet-type-selector">
+          <button class="bet-type-btn active" data-type="single">&#9932; 单关</button>
+          <button class="bet-type-btn" data-type="parlay">&#10070; 串关</button>
+        </div>
+      </div>
+
+      <!-- Photo Upload -->
+      <div class="photo-upload" id="photoUpload">
+        <div class="photo-upload__icon">&#128247;</div>
+        <div class="photo-upload__text">拍照识别彩票</div>
+        <div class="photo-upload__divider">或</div>
+        <div class="photo-upload__hint">从相册选择票据图片</div>
+      </div>
+
+      <!-- OCR Preview -->
+      <div class="ocr-preview" id="ocrPreview">
+        <div class="ocr-preview__header">
+          <div class="ocr-preview__title">&#9989; 识别结果</div>
+          <button class="ocr-preview__dismiss">&times;</button>
+        </div>
+        <div class="ocr-preview__fields">
+          <div class="ocr-field">
+            <div class="ocr-field__label">比赛</div>
+            <div class="ocr-field__value">皇马 vs 巴萨</div>
+          </div>
+          <div class="ocr-field">
+            <div class="ocr-field__label">玩法</div>
+            <div class="ocr-field__value">让球 -0.5</div>
+          </div>
+          <div class="ocr-field">
+            <div class="ocr-field__label">赔率</div>
+            <div class="ocr-field__value">1.85</div>
+          </div>
+          <div class="ocr-field">
+            <div class="ocr-field__label">投注额</div>
+            <div class="ocr-field__value">¥500</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Category -->
+      <div class="input-group">
+        <label class="input-label">赛事类别</label>
+        <div class="category-selector">
+          <button class="category-chip active" data-cat="football">&#9917; 足球</button>
+          <button class="category-chip" data-cat="basketball">&#127936; 篮球</button>
+          <button class="category-chip" data-cat="tennis">&#127934; 网球</button>
+          <button class="category-chip" data-cat="other">&#9878; 其他</button>
+        </div>
+      </div>
+
+      <!-- Form Fields -->
+      <div class="input-group">
+        <label class="input-label">比赛名称</label>
+        <input type="text" class="input-field" placeholder="如: 皇马 vs 巴萨">
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <div class="input-group">
+          <label class="input-label">赔率</label>
+          <input type="number" class="input-field" placeholder="1.85" step="0.01">
+        </div>
+        <div class="input-group">
+          <label class="input-label">投注金额</label>
+          <input type="number" class="input-field" placeholder="¥500">
+        </div>
+      </div>
+
+      <div class="input-group">
+        <label class="input-label">玩法</label>
+        <select class="input-field" style="appearance: none; background-image: url('data:image/svg+xml;utf8,<svg fill=\"%238a96b0\" viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M7 10l5 5 5-5z\"/></svg>'); background-repeat: no-repeat; background-position: right 12px center; background-size: 16px;">
+          <option value="">选择玩法</option>
+          <option>独赢</option>
+          <option>让球</option>
+          <option>大小分</option>
+          <option>波胆</option>
+          <option>半全场</option>
+        </select>
+      </div>
+
+      <div class="input-group">
+        <label class="input-label">备注</label>
+        <input type="text" class="input-field" placeholder="可选备注...">
+      </div>
+
+      <!-- Parlay Legs (hidden by default) -->
+      <div class="parlay-legs" id="parlayLegs" style="display: none;">
+        <label class="input-label">串关场次</label>
+        <div class="parlay-leg">
+          <div class="parlay-leg__header">
+            <span class="parlay-leg__number">第 1 场</span>
+            <button class="parlay-leg__remove">&times;</button>
+          </div>
+          <div class="parlay-leg__fields">
+            <input type="text" class="input-field" placeholder="比赛名称">
+            <input type="number" class="input-field" placeholder="赔率" step="0.01">
+          </div>
+        </div>
+        <div class="parlay-leg">
+          <div class="parlay-leg__header">
+            <span class="parlay-leg__number">第 2 场</span>
+            <button class="parlay-leg__remove">&times;</button>
+          </div>
+          <div class="parlay-leg__fields">
+            <input type="text" class="input-field" placeholder="比赛名称">
+            <input type="number" class="input-field" placeholder="赔率" step="0.01">
+          </div>
+        </div>
+        <button class="add-leg-btn">+ 添加场次</button>
+      </div>
+
+      <!-- Submit -->
+      <div class="submit-area">
+        <button class="btn btn--primary">&#10003; 保存投注记录</button>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════
+         PAGE 3: HISTORY
+         ═══════════════════════════════════ -->
+    <div class="page" id="page-history">
+      <div class="page-title">历史记录</div>
+
+      <!-- Date Range -->
+      <div class="date-range">
+        <span class="date-range__icon">&#128197;</span>
+        <span class="date-range__text">2026/05/01 — 2026/06/03</span>
+        <span class="date-range__arrow">&#9662;</span>
+      </div>
+
+      <!-- Filter Bar -->
+      <div class="filter-bar">
+        <button class="filter-chip active">全部</button>
+        <button class="filter-chip">足球</button>
+        <button class="filter-chip">篮球</button>
+        <button class="filter-chip">网球</button>
+        <button class="filter-chip">单关</button>
+        <button class="filter-chip">串关</button>
+        <button class="filter-chip">已结算</button>
+        <button class="filter-chip">未结算</button>
+      </div>
+
+      <!-- History Items -->
+      <div class="stagger">
+        <div class="history-item" onclick="showDetail()">
+          <div class="history-item__top">
+            <div>
+              <div class="history-item__match">&#9917; 皇马 vs 巴萨</div>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">2026/06/02 · 足球 · 让球</div>
+            </div>
+            <div class="history-item__pnl text-positive">+¥580</div>
+          </div>
+          <div class="history-item__bottom">
+            <div class="history-item__tags">
+              <span class="chip chip--green">已结算</span>
+              <span class="chip chip--muted">单关</span>
+            </div>
+            <div style="font-family: var(--font-display); font-size: 12px; color: var(--text-muted);">@1.85 · ¥500</div>
+          </div>
+        </div>
+
+        <div class="history-item" onclick="showDetail()">
+          <div class="history-item__top">
+            <div>
+              <div class="history-item__match">&#127936; 湖人 vs 勇士</div>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">2026/06/01 · 篮球 · 大小分</div>
+            </div>
+            <div class="history-item__pnl text-negative">-¥320</div>
+          </div>
+          <div class="history-item__bottom">
+            <div class="history-item__tags">
+              <span class="chip chip--green">已结算</span>
+              <span class="chip chip--muted">单关</span>
+            </div>
+            <div style="font-family: var(--font-display); font-size: 12px; color: var(--text-muted);">@1.72 · ¥320</div>
+          </div>
+        </div>
+
+        <div class="history-item" onclick="showDetail()">
+          <div class="history-item__top">
+            <div>
+              <div class="history-item__match">&#9917; 曼城 vs 利物浦</div>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">2026/06/01 · 足球 · 独赢</div>
+            </div>
+            <div class="history-item__pnl text-positive">+¥420</div>
+          </div>
+          <div class="history-item__bottom">
+            <div class="history-item__tags">
+              <span class="chip chip--green">已结算</span>
+              <span class="chip chip--muted">单关</span>
+            </div>
+            <div style="font-family: var(--font-display); font-size: 12px; color: var(--text-muted);">@2.10 · ¥400</div>
+          </div>
+        </div>
+
+        <div class="history-item" onclick="showDetail()">
+          <div class="history-item__top">
+            <div>
+              <div class="history-item__match">&#10070; 串关 × 3</div>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">2026/05/30 · 足球</div>
+            </div>
+            <div class="history-item__pnl text-positive">+¥1,260</div>
+          </div>
+          <div class="history-item__bottom">
+            <div class="history-item__tags">
+              <span class="chip chip--green">已结算</span>
+              <span class="chip chip--amber">串关</span>
+            </div>
+            <div style="font-family: var(--font-display); font-size: 12px; color: var(--text-muted);">@6.30 · ¥200</div>
+          </div>
+        </div>
+
+        <div class="history-item" onclick="showDetail()">
+          <div class="history-item__top">
+            <div>
+              <div class="history-item__match">&#127934; 德约 vs 阿尔卡拉斯</div>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">2026/05/29 · 网球 · 独赢</div>
+            </div>
+            <div class="history-item__pnl" style="color: var(--accent-amber);">待结算</div>
+          </div>
+          <div class="history-item__bottom">
+            <div class="history-item__tags">
+              <span class="chip chip--amber">未结算</span>
+              <span class="chip chip--muted">单关</span>
+            </div>
+            <div style="font-family: var(--font-display); font-size: 12px; color: var(--text-muted);">@2.25 · ¥300</div>
+          </div>
+        </div>
+
+        <div class="history-item" onclick="showDetail()">
+          <div class="history-item__top">
+            <div>
+              <div class="history-item__match">&#9917; 拜仁 vs 多特蒙德</div>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">2026/05/28 · 足球 · 让球</div>
+            </div>
+            <div class="history-item__pnl text-negative">-¥250</div>
+          </div>
+          <div class="history-item__bottom">
+            <div class="history-item__tags">
+              <span class="chip chip--green">已结算</span>
+              <span class="chip chip--muted">单关</span>
+            </div>
+            <div style="font-family: var(--font-display); font-size: 12px; color: var(--text-muted);">@1.90 · ¥250</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════
+         PAGE 4: ANALYTICS
+         ═══════════════════════════════════ -->
+    <div class="page" id="page-analytics">
+      <div class="page-title">数据分析</div>
+
+      <!-- Quick Stats -->
+      <div class="stats-grid stagger">
+        <div class="stat-card">
+          <div class="stat-card__value text-positive">+¥3.2k</div>
+          <div class="stat-card__label">总盈利</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card__value">64.2%</div>
+          <div class="stat-card__label">总胜率</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card__value">2.18</div>
+          <div class="stat-card__label">平均赔率</div>
+        </div>
+      </div>
+
+      <!-- P&L Trend -->
+      <div class="chart-section">
+        <div class="chart-section__header">
+          <span class="chart-section__title">盈亏趋势</span>
+          <button class="chart-section__action">近30天 &#9662;</button>
+        </div>
+        <svg width="100%" height="120" viewBox="0 0 370 120" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="greenGradient2" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="rgba(0, 230, 118, 0.15)"/>
+              <stop offset="100%" stop-color="rgba(0, 230, 118, 0)"/>
+            </linearGradient>
+          </defs>
+          <line x1="0" y1="30" x2="370" y2="30" stroke="rgba(255,255,255,0.04)" stroke-width="0.5"/>
+          <line x1="0" y1="60" x2="370" y2="60" stroke="rgba(255,255,255,0.04)" stroke-width="0.5"/>
+          <line x1="0" y1="90" x2="370" y2="90" stroke="rgba(255,255,255,0.04)" stroke-width="0.5"/>
+          <path d="M0,90 L37,85 L74,75 L111,80 L148,60 L185,55 L222,40 L259,50 L296,35 L333,20 L370,15 L370,120 L0,120 Z" fill="url(#greenGradient2)"/>
+          <polyline points="0,90 37,85 74,75 111,80 148,60 185,55 222,40 259,50 296,35 333,20 370,15" fill="none" stroke="#00e676" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="370" cy="15" r="4" fill="#00e676" style="filter: drop-shadow(0 0 6px rgba(0,230,118,0.6))"/>
+        </svg>
+        <div style="display: flex; justify-content: space-between; margin-top: 6px;">
+          <span style="font-size: 9px; color: var(--text-muted);">5/4</span>
+          <span style="font-size: 9px; color: var(--text-muted);">5/11</span>
+          <span style="font-size: 9px; color: var(--text-muted);">5/18</span>
+          <span style="font-size: 9px; color: var(--text-muted);">5/25</span>
+          <span style="font-size: 9px; color: var(--text-muted);">6/3</span>
+        </div>
+      </div>
+
+      <!-- Bet Type Distribution -->
+      <div class="chart-section">
+        <div class="chart-section__header">
+          <span class="chart-section__title">投注分布</span>
+        </div>
+        <div class="donut-chart">
+          <svg class="donut-chart__svg" viewBox="0 0 42 42">
+            <circle cx="21" cy="21" r="15.91549430918954" fill="transparent" stroke="rgba(255,255,255,0.04)" stroke-width="4"/>
+            <circle cx="21" cy="21" r="15.91549430918954" fill="transparent" stroke="#00e676" stroke-width="4"
+              stroke-dasharray="42 58" stroke-dashoffset="25" stroke-linecap="round"/>
+            <circle cx="21" cy="21" r="15.91549430918954" fill="transparent" stroke="#ffab00" stroke-width="4"
+              stroke-dasharray="25 75" stroke-dashoffset="83" stroke-linecap="round"/>
+            <circle cx="21" cy="21" r="15.91549430918954" fill="transparent" stroke="#448aff" stroke-width="4"
+              stroke-dasharray="18 82" stroke-dashoffset="58" stroke-linecap="round"/>
+            <circle cx="21" cy="21" r="15.91549430918954" fill="transparent" stroke="#ff3d57" stroke-width="4"
+              stroke-dasharray="15 85" stroke-dashoffset="40" stroke-linecap="round"/>
+          </svg>
+          <div class="donut-chart__legend">
+            <div class="legend-item">
+              <span class="legend-item__dot" style="background: #00e676;"></span>
+              <span class="legend-item__label">足球</span>
+              <span class="legend-item__value">42%</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-item__dot" style="background: #ffab00;"></span>
+              <span class="legend-item__label">篮球</span>
+              <span class="legend-item__value">25%</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-item__dot" style="background: #448aff;"></span>
+              <span class="legend-item__label">网球</span>
+              <span class="legend-item__value">18%</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-item__dot" style="background: #ff3d57;"></span>
+              <span class="legend-item__label">其他</span>
+              <span class="legend-item__value">15%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Odds Range Analysis -->
+      <div class="chart-section">
+        <div class="chart-section__header">
+          <span class="chart-section__title">赔率区间胜率</span>
+        </div>
+        <div class="bar-chart" style="margin-bottom: 20px;">
+          <div class="bar-chart__bar" style="height: 72%; background: linear-gradient(180deg, #00e676, rgba(0,230,118,0.4));">
+            <span class="bar-chart__bar-label">1.0-1.5</span>
+          </div>
+          <div class="bar-chart__bar" style="height: 85%; background: linear-gradient(180deg, #00e676, rgba(0,230,118,0.4));">
+            <span class="bar-chart__bar-label">1.5-2.0</span>
+          </div>
+          <div class="bar-chart__bar" style="height: 58%; background: linear-gradient(180deg, #ffab00, rgba(255,171,0,0.4));">
+            <span class="bar-chart__bar-label">2.0-2.5</span>
+          </div>
+          <div class="bar-chart__bar" style="height: 40%; background: linear-gradient(180deg, #ffab00, rgba(255,171,0,0.4));">
+            <span class="bar-chart__bar-label">2.5-3.0</span>
+          </div>
+          <div class="bar-chart__bar" style="height: 25%; background: linear-gradient(180deg, #ff3d57, rgba(255,61,87,0.4));">
+            <span class="bar-chart__bar-label">3.0+</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Strategy Heatmap -->
+      <div class="chart-section">
+        <div class="chart-section__header">
+          <span class="chart-section__title">策略热力图</span>
+          <button class="chart-section__action">本月</button>
+        </div>
+        <div style="display: flex; gap: 6px; margin-bottom: 8px;">
+          <span style="font-size: 10px; color: var(--text-muted); width: 28px;"></span>
+          <span style="font-size: 9px; color: var(--text-muted); flex: 1; text-align: center;">独赢</span>
+          <span style="font-size: 9px; color: var(--text-muted); flex: 1; text-align: center;">让球</span>
+          <span style="font-size: 9px; color: var(--text-muted); flex: 1; text-align: center;">大小分</span>
+          <span style="font-size: 9px; color: var(--text-muted); flex: 1; text-align: center;">串关</span>
+        </div>
+        <div class="heatmap-rows">
+          <div style="display: flex; gap: 6px; margin-bottom: 4px; align-items: center;">
+            <span style="font-size: 10px; color: var(--text-muted); width: 28px;">&#9917;</span>
+            <div style="flex: 1; height: 28px; background: rgba(0,230,118,0.5); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 9px; font-family: var(--font-display); color: var(--text-primary);">72%</div>
+            <div style="flex: 1; height: 28px; background: rgba(0,230,118,0.25); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 9px; font-family: var(--font-display); color: var(--text-primary);">58%</div>
+            <div style="flex: 1; height: 28px; background: rgba(255,171,0,0.25); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 9px; font-family: var(--font-display); color: var(--text-primary);">45%</div>
+            <div style="flex: 1; height: 28px; background: rgba(0,230,118,0.35); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 9px; font-family: var(--font-display); color: var(--text-primary);">65%</div>
+          </div>
+          <div style="display: flex; gap: 6px; margin-bottom: 4px; align-items: center;">
+            <span style="font-size: 10px; color: var(--text-muted); width: 28px;">&#127936;</span>
+            <div style="flex: 1; height: 28px; background: rgba(0,230,118,0.35); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 9px; font-family: var(--font-display); color: var(--text-primary);">64%</div>
+            <div style="flex: 1; height: 28px; background: rgba(255,61,87,0.25); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 9px; font-family: var(--font-display); color: var(--text-primary);">38%</div>
+            <div style="flex: 1; height: 28px; background: rgba(0,230,118,0.45); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 9px; font-family: var(--font-display); color: var(--text-primary);">70%</div>
+            <div style="flex: 1; height: 28px; background: rgba(255,171,0,0.2); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 9px; font-family: var(--font-display); color: var(--text-primary);">42%</div>
+          </div>
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <span style="font-size: 10px; color: var(--text-muted); width: 28px;">&#127934;</span>
+            <div style="flex: 1; height: 28px; background: rgba(255,171,0,0.2); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 9px; font-family: var(--font-display); color: var(--text-primary);">50%</div>
+            <div style="flex: 1; height: 28px; background: rgba(255,61,87,0.15); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 9px; font-family: var(--font-display); color: var(--text-primary);">30%</div>
+            <div style="flex: 1; height: 28px; background: rgba(0,230,118,0.2); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 9px; font-family: var(--font-display); color: var(--text-primary);">55%</div>
+            <div style="flex: 1; height: 28px; background: rgba(0,230,118,0.15); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 9px; font-family: var(--font-display); color: var(--text-muted);">—</div>
+          </div>
+        </div>
+        <!-- Heatmap Legend -->
+        <div style="display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 10px;">
+          <span style="font-size: 9px; color: var(--text-muted);">低</span>
+          <div style="display: flex; gap: 2px;">
+            <div style="width: 16px; height: 8px; background: rgba(255,61,87,0.25); border-radius: 2px;"></div>
+            <div style="width: 16px; height: 8px; background: rgba(255,171,0,0.25); border-radius: 2px;"></div>
+            <div style="width: 16px; height: 8px; background: rgba(0,230,118,0.25); border-radius: 2px;"></div>
+            <div style="width: 16px; height: 8px; background: rgba(0,230,118,0.5); border-radius: 2px;"></div>
+          </div>
+          <span style="font-size: 9px; color: var(--text-muted);">高</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════
+         PAGE 5: SETTINGS
+         ═══════════════════════════════════ -->
+    <div class="page" id="page-settings">
+      <div class="page-title">设置</div>
+
+      <!-- Profile Card -->
+      <div class="profile-card">
+        <div class="profile-avatar">强</div>
+        <div class="profile-name">阿强</div>
+        <div class="profile-email">aqiang@example.com</div>
+        <div class="profile-stats">
+          <div class="profile-stat">
+            <div class="profile-stat__value">87</div>
+            <div class="profile-stat__label">投注笔数</div>
+          </div>
+          <div class="profile-stat">
+            <div class="profile-stat__value text-positive">64%</div>
+            <div class="profile-stat__label">胜率</div>
+          </div>
+          <div class="profile-stat">
+            <div class="profile-stat__value">45天</div>
+            <div class="profile-stat__label">使用天数</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Data Group -->
+      <div class="settings-group">
+        <div class="settings-group__title">数据管理</div>
+        <div class="settings-item">
+          <div class="settings-item__icon settings-item__icon--green">&#128229;</div>
+          <div class="settings-item__content">
+            <div class="settings-item__title">导出 CSV</div>
+            <div class="settings-item__subtitle">导出所有投注记录</div>
+          </div>
+          <span class="settings-item__arrow">&#8250;</span>
+        </div>
+        <div class="settings-item">
+          <div class="settings-item__icon settings-item__icon--blue">&#128194;</div>
+          <div class="settings-item__content">
+            <div class="settings-item__title">数据备份</div>
+            <div class="settings-item__subtitle">上次备份: 2026/06/02</div>
+          </div>
+          <span class="settings-item__arrow">&#8250;</span>
+        </div>
+      </div>
+
+      <!-- Preferences -->
+      <div class="settings-group">
+        <div class="settings-group__title">偏好设置</div>
+        <div class="settings-item">
+          <div class="settings-item__icon settings-item__icon--amber">&#127912;</div>
+          <div class="settings-item__content">
+            <div class="settings-item__title">深色模式</div>
+            <div class="settings-item__subtitle">已启用</div>
+          </div>
+          <div style="width: 44px; height: 24px; background: var(--accent-green); border-radius: 12px; position: relative; cursor: pointer;">
+            <div style="width: 20px; height: 20px; background: white; border-radius: 50%; position: absolute; top: 2px; right: 2px; box-shadow: 0 1px 4px rgba(0,0,0,0.3);"></div>
+          </div>
+        </div>
+        <div class="settings-item">
+          <div class="settings-item__icon settings-item__icon--muted">&#128176;</div>
+          <div class="settings-item__content">
+            <div class="settings-item__title">默认货币</div>
+            <div class="settings-item__subtitle">CNY (¥)</div>
+          </div>
+          <span class="settings-item__arrow">&#8250;</span>
+        </div>
+        <div class="settings-item">
+          <div class="settings-item__icon settings-item__icon--muted">&#128276;</div>
+          <div class="settings-item__content">
+            <div class="settings-item__title">结算提醒</div>
+            <div class="settings-item__subtitle">比赛结束后推送提醒</div>
+          </div>
+          <div style="width: 44px; height: 24px; background: var(--accent-green); border-radius: 12px; position: relative; cursor: pointer;">
+            <div style="width: 20px; height: 20px; background: white; border-radius: 50%; position: absolute; top: 2px; right: 2px; box-shadow: 0 1px 4px rgba(0,0,0,0.3);"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- About -->
+      <div class="settings-group">
+        <div class="settings-group__title">关于</div>
+        <div class="settings-item">
+          <div class="settings-item__icon settings-item__icon--muted">&#9432;</div>
+          <div class="settings-item__content">
+            <div class="settings-item__title">关于 LotteryAcct</div>
+            <div class="settings-item__subtitle">版本 1.0.0</div>
+          </div>
+          <span class="settings-item__arrow">&#8250;</span>
+        </div>
+        <div class="settings-item">
+          <div class="settings-item__icon settings-item__icon--muted">&#128172;</div>
+          <div class="settings-item__content">
+            <div class="settings-item__title">意见反馈</div>
+          </div>
+          <span class="settings-item__arrow">&#8250;</span>
+        </div>
+      </div>
+
+      <!-- Logout -->
+      <div class="settings-group">
+        <div class="settings-item">
+          <div class="settings-item__icon settings-item__icon--red">&#128682;</div>
+          <div class="settings-item__content">
+            <div class="settings-item__title" style="color: var(--accent-red);">退出登录</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="settings-footer">
+        <div class="settings-footer__version">LotteryAcct v1.0.0</div>
+        <div style="margin-top: 2px;">Built with Flutter + Supabase</div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ═══════ HISTORY DETAIL SHEET ═══════ -->
+  <div class="detail-overlay" id="detailOverlay" onclick="hideDetail(event)">
+    <div class="detail-sheet">
+      <div class="detail-sheet__handle"></div>
+      <div class="detail-sheet__title">&#9917; 皇马 vs 巴萨</div>
+
+      <div class="detail-row">
+        <span class="detail-row__label">投注类型</span>
+        <span class="detail-row__value">单关 · 让球</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-row__label">赔率</span>
+        <span class="detail-row__value font-mono">1.85</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-row__label">投注金额</span>
+        <span class="detail-row__value font-mono">¥500</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-row__label">可赢金额</span>
+        <span class="detail-row__value font-mono text-positive">¥925</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-row__label">结算状态</span>
+        <span class="detail-row__value"><span class="chip chip--green">已结算 · 赢</span></span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-row__label">盈亏</span>
+        <span class="detail-row__value font-mono text-positive">+¥580</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-row__label">投注时间</span>
+        <span class="detail-row__value">2026/06/02 21:30</span>
+      </div>
+      <div class="detail-row" style="border-bottom: none;">
+        <span class="detail-row__label">备注</span>
+        <span class="detail-row__value text-muted">无</span>
+      </div>
+
+      <div class="detail-actions">
+        <button class="btn btn--secondary">&#9998; 编辑</button>
+        <button class="btn btn--danger">&#128465; 删除</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ BOTTOM NAVIGATION ═══════ -->
+  <nav class="bottom-nav">
+    <button class="nav-item active" data-page="dashboard">
+      <span class="nav-icon">&#9751;</span>
+      <span>首页</span>
+    </button>
+    <button class="nav-item" data-page="history">
+      <span class="nav-icon">&#128202;</span>
+      <span>记录</span>
+    </button>
+    <button class="nav-item nav-item--add" data-page="add">
+      <span class="nav-icon">&#43;</span>
+      <span></span>
+    </button>
+    <button class="nav-item" data-page="analytics">
+      <span class="nav-icon">&#128200;</span>
+      <span>分析</span>
+    </button>
+    <button class="nav-item" data-page="settings">
+      <span class="nav-icon">&#9881;</span>
+      <span>设置</span>
+    </button>
+  </nav>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════
+const navItems = document.querySelectorAll('.nav-item');
+const pages = document.querySelectorAll('.page');
+
+function switchPage(pageName) {
+  pages.forEach(p => p.classList.remove('active'));
+  navItems.forEach(n => n.classList.remove('active'));
+
+  const targetPage = document.getElementById('page-' + pageName);
+  const targetNav = document.querySelector(`.nav-item[data-page="${pageName}"]`);
+
+  if (targetPage) targetPage.classList.add('active');
+  if (targetNav) targetNav.classList.add('active');
+}
+
+navItems.forEach(item => {
+  item.addEventListener('click', () => {
+    switchPage(item.dataset.page);
+  });
+});
+
+// ═══════════════════════════════════════════
+// BET TYPE TOGGLE
+// ═══════════════════════════════════════════
+const betTypeBtns = document.querySelectorAll('.bet-type-btn');
+const parlayLegs = document.getElementById('parlayLegs');
+
+betTypeBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    betTypeBtns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    parlayLegs.style.display = btn.dataset.type === 'parlay' ? 'block' : 'none';
+  });
+});
+
+// ═══════════════════════════════════════════
+// CATEGORY CHIPS
+// ═══════════════════════════════════════════
+const categoryChips = document.querySelectorAll('.category-chip');
+categoryChips.forEach(chip => {
+  chip.addEventListener('click', () => {
+    categoryChips.forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+  });
+});
+
+// ═══════════════════════════════════════════
+// FILTER CHIPS
+// ═══════════════════════════════════════════
+const filterChips = document.querySelectorAll('.filter-chip');
+filterChips.forEach(chip => {
+  chip.addEventListener('click', () => {
+    filterChips.forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+  });
+});
+
+// ═══════════════════════════════════════════
+// PHOTO UPLOAD → OCR PREVIEW
+// ═══════════════════════════════════════════
+const photoUpload = document.getElementById('photoUpload');
+const ocrPreview = document.getElementById('ocrPreview');
+
+photoUpload.addEventListener('click', () => {
+  photoUpload.style.display = 'none';
+  ocrPreview.classList.add('show');
+
+  // Auto-fill fields
+  const matchInput = document.querySelector('#page-add input[placeholder="如: 皇马 vs 巴萨"]');
+  const oddsInput = document.querySelector('#page-add input[placeholder="1.85"]');
+  const amountInput = document.querySelector('#page-add input[placeholder="¥500"]');
+
+  setTimeout(() => {
+    if (matchInput) matchInput.value = '皇马 vs 巴萨';
+    if (oddsInput) oddsInput.value = '1.85';
+    if (amountInput) amountInput.value = '500';
+  }, 400);
+});
+
+document.querySelector('.ocr-preview__dismiss').addEventListener('click', () => {
+  ocrPreview.classList.remove('show');
+  photoUpload.style.display = '';
+});
+
+// ═══════════════════════════════════════════
+// ADD PARLAY LEG
+// ═══════════════════════════════════════════
+const addLegBtn = document.querySelector('.add-leg-btn');
+let legCount = 2;
+
+addLegBtn.addEventListener('click', () => {
+  legCount++;
+  const legHtml = `
+    <div class="parlay-leg" style="animation: countUp 0.3s ease-out;">
+      <div class="parlay-leg__header">
+        <span class="parlay-leg__number">第 ${legCount} 场</span>
+        <button class="parlay-leg__remove" onclick="this.closest('.parlay-leg').remove()">&times;</button>
+      </div>
+      <div class="parlay-leg__fields">
+        <input type="text" class="input-field" placeholder="比赛名称">
+        <input type="number" class="input-field" placeholder="赔率" step="0.01">
+      </div>
+    </div>
+  `;
+  addLegBtn.insertAdjacentHTML('beforebegin', legHtml);
+});
+
+// Remove leg buttons
+document.addEventListener('click', (e) => {
+  if (e.target.classList.contains('parlay-leg__remove')) {
+    e.target.closest('.parlay-leg').remove();
+  }
+});
+
+// ═══════════════════════════════════════════
+// DETAIL MODAL
+// ═══════════════════════════════════════════
+const detailOverlay = document.getElementById('detailOverlay');
+
+function showDetail() {
+  detailOverlay.classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+
+function hideDetail(e) {
+  if (e.target === detailOverlay) {
+    detailOverlay.classList.remove('show');
+    document.body.style.overflow = '';
+  }
+}
+
+// ═══════════════════════════════════════════
+// SAVE BUTTON TOAST
+// ═══════════════════════════════════════════
+document.querySelector('.submit-area .btn').addEventListener('click', function() {
+  const btn = this;
+  const originalText = btn.innerHTML;
+  btn.innerHTML = '&#9989; 已保存';
+  btn.style.background = 'linear-gradient(135deg, #00c853 0%, #009624 100%)';
+  setTimeout(() => {
+    btn.innerHTML = originalText;
+    btn.style.background = '';
+  }, 1500);
+});
+</script>
+</body>
+</html>
