@@ -1,9 +1,9 @@
-// winning-ocr: Scan winning ticket / result to determine bet outcome
-// Uses Claude Vision API to verify match results
+// winning-ocr: Verify match result via Qwen-VL (通义千问)
+// Uses Alibaba DashScope API
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 
-const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages'
+const DASHSCOPE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'
 
 interface WinningResult {
   match_name: string
@@ -30,41 +30,32 @@ serve(async (req) => {
       return jsonResponse({ error: '请提供 image_url 或 image_base64' }, 400)
     }
 
-    const apiKey = Deno.env.get('CLAUDE_API_KEY')
+    const apiKey = Deno.env.get('DASHSCOPE_API_KEY')
     if (!apiKey) {
       return jsonResponse({ error: 'OCR 服务未配置' }, 500)
     }
 
-    const imageContent = image_base64
-      ? {
-          type: 'image',
-          source: { type: 'base64', media_type: 'image/jpeg', data: image_base64 },
-        }
-      : {
-          type: 'image',
-          source: { type: 'url', url: image_url },
-        }
+    const imageUrl = image_base64
+      ? `data:image/jpeg;base64,${image_base64}`
+      : image_url
 
     const contextHint = match_name
       ? `\n\n参考信息：比赛 ${match_name}，玩法 ${play_type || '未知'}`
       : ''
 
-    const response = await fetch(CLAUDE_API_URL, {
+    const response = await fetch(DASHSCOPE_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
+        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 512,
+        model: 'qwen-vl-max',
         messages: [
           {
             role: 'user',
             content: [
-              imageContent,
+              { type: 'image_url', image_url: { url: imageUrl } },
               {
                 type: 'text',
                 text: `这是一张比赛结果/中奖票据的图片。请判断该投注是否获胜，以 JSON 格式返回：${contextHint}
@@ -77,7 +68,7 @@ serve(async (req) => {
   "raw_text": "图片上的原始文字"
 }
 
-confidence 为 0-1 的置信度。只返回 JSON。`,
+confidence 为 0-1 的置信度。只返回纯 JSON，不要 markdown 代码块。`,
               },
             ],
           },
@@ -86,12 +77,12 @@ confidence 为 0-1 的置信度。只返回 JSON。`,
     })
 
     if (!response.ok) {
-      console.error('Claude API error:', await response.text())
+      console.error('DashScope API error:', await response.text())
       return jsonResponse({ error: '识别失败，请重试' }, 502)
     }
 
     const data = await response.json()
-    const textContent = data.content?.[0]?.text ?? ''
+    const textContent = data.choices?.[0]?.message?.content ?? ''
 
     const jsonMatch = textContent.match(/\{[\s\S]*\}/)
     if (!jsonMatch) {

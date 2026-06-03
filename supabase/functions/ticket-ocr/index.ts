@@ -1,9 +1,9 @@
-// ticket-ocr: Scan betting ticket image and extract bet details
-// Uses Claude Vision API to parse ticket information
+// ticket-ocr: Scan betting ticket image via Qwen-VL (通义千问)
+// Uses Alibaba DashScope API
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 
-const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages'
+const DASHSCOPE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'
 
 interface OcrResult {
   match_name: string | null
@@ -12,15 +12,11 @@ interface OcrResult {
   stake: number | null
   category: string
   bet_type: string
-  legs: Array<{
-    match_name: string
-    odds: number
-  }> | null
+  legs: Array<{ match_name: string; odds: number }> | null
   raw_text: string
 }
 
 serve(async (req) => {
-  // CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', {
       headers: {
@@ -37,45 +33,28 @@ serve(async (req) => {
       return jsonResponse({ error: '请提供 image_url 或 image_base64' }, 400)
     }
 
-    const apiKey = Deno.env.get('CLAUDE_API_KEY')
+    const apiKey = Deno.env.get('DASHSCOPE_API_KEY')
     if (!apiKey) {
       return jsonResponse({ error: 'OCR 服务未配置' }, 500)
     }
 
-    // Build image content block
-    const imageContent = image_base64
-      ? {
-          type: 'image',
-          source: {
-            type: 'base64',
-            media_type: 'image/jpeg',
-            data: image_base64,
-          },
-        }
-      : {
-          type: 'image',
-          source: {
-            type: 'url',
-            url: image_url,
-          },
-        }
+    const imageUrl = image_base64
+      ? `data:image/jpeg;base64,${image_base64}`
+      : image_url
 
-    const response = await fetch(CLAUDE_API_URL, {
+    const response = await fetch(DASHSCOPE_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
+        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 1024,
+        model: 'qwen-vl-max',
         messages: [
           {
             role: 'user',
             content: [
-              imageContent,
+              { type: 'image_url', image_url: { url: imageUrl } },
               {
                 type: 'text',
                 text: `这是一张体育投注票据图片。请提取以下信息并以 JSON 格式返回：
@@ -94,7 +73,7 @@ serve(async (req) => {
 如果是串关（parlay），legs 格式为：
 [{"match_name": "比赛1", "odds": 1.85}, {"match_name": "比赛2", "odds": 2.10}]
 
-只返回 JSON，不要其他文字。无法识别的字段填 null。`,
+只返回纯 JSON，不要 markdown 代码块或其他文字。无法识别的字段填 null。`,
               },
             ],
           },
@@ -104,14 +83,14 @@ serve(async (req) => {
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('Claude API error:', errorText)
+      console.error('DashScope API error:', errorText)
       return jsonResponse({ error: 'OCR 识别失败，请重试' }, 502)
     }
 
     const data = await response.json()
-    const textContent = data.content?.[0]?.text ?? ''
+    const textContent = data.choices?.[0]?.message?.content ?? ''
 
-    // Parse JSON from Claude response
+    // Parse JSON from response
     const jsonMatch = textContent.match(/\{[\s\S]*\}/)
     if (!jsonMatch) {
       return jsonResponse({ error: '无法解析票据信息' }, 422)
