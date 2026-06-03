@@ -1,9 +1,12 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../shared/models/betting_record.dart';
 import '../../shared/providers/betting_provider.dart';
+import '../../shared/services/ocr_service.dart';
 
 class AddBetScreen extends ConsumerStatefulWidget {
   const AddBetScreen({super.key});
@@ -58,11 +61,54 @@ class _AddBetScreenState extends ConsumerState<AddBetScreen> {
     final image = await picker.pickImage(source: ImageSource.camera, maxWidth: 1024);
     if (image == null) return;
 
-    // TODO: compress and upload to Supabase Storage, then call OCR edge function
     if (!mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('OCR 功能将在 T6 实现'), backgroundColor: Color(0xFFFFAB00)),
+      const SnackBar(content: Text('正在识别...'), backgroundColor: Color(0xFF111A2E), duration: Duration(seconds: 5)),
     );
+
+    try {
+      final bytes = await File(image.path).readAsBytes();
+      final base64Str = base64Encode(bytes);
+      final ocr = ref.read(ocrServiceProvider);
+      final result = await ocr.scanTicket(base64Str);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+      // Auto-fill form
+      if (result.matchName != null) _matchCtrl.text = result.matchName!;
+      if (result.odds != null) _oddsCtrl.text = result.odds.toString();
+      if (result.stake != null) _stakeCtrl.text = result.stake.toString();
+      if (result.playType.isNotEmpty && _playTypes.contains(result.playType)) {
+        _playType = result.playType;
+      }
+      final cat = BetCategory.values.where((c) => c.name == result.category).firstOrNull;
+      if (cat != null) _category = cat;
+      if (result.betType == 'parlay') {
+        _betType = BetType.parlay;
+        if (result.legs != null) {
+          for (final leg in result.legs!) {
+            final ui = _ParlayLegUi();
+            ui.matchCtrl.text = leg.matchName;
+            ui.oddsCtrl.text = leg.odds.toString();
+            _parlayLegs.add(ui);
+          }
+        }
+      }
+
+      setState(() {});
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('✅ 识别成功，已自动填充'), backgroundColor: Color(0xFF00C853), behavior: SnackBarBehavior.floating),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('识别失败，请手动填写'), backgroundColor: Color(0xFFFFAB00)),
+      );
+    }
   }
 
   Future<void> _submit() async {
