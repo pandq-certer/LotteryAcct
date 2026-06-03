@@ -1,5 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'features/auth/auth_screen.dart';
+import 'features/dashboard/dashboard_screen.dart';
+import 'features/betting/add_bet_screen.dart';
+import 'features/history/history_screen.dart';
+import 'features/analytics/analytics_screen.dart';
+import 'features/settings/settings_screen.dart';
 
 class LotteryAcctApp extends StatelessWidget {
   const LotteryAcctApp({super.key});
@@ -83,8 +90,32 @@ class LotteryAcctApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const _MainShell(),
+      home: const AuthWrapper(),
     );
+  }
+}
+
+class AuthWrapper extends StatefulWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  @override
+  void initState() {
+    super.initState();
+    Supabase.instance.client.auth.onAuthStateChange.listen((event) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session == null) return const AuthScreen();
+    return const _MainShell();
   }
 }
 
@@ -98,12 +129,12 @@ class _MainShell extends StatefulWidget {
 class _MainShellState extends State<_MainShell> {
   int _currentIndex = 0;
 
-  final _pages = const [
-    _PlaceholderPage(title: '首页', icon: Icons.dashboard_rounded),
-    _PlaceholderPage(title: '记录', icon: Icons.history_rounded),
-    _PlaceholderPage(title: '添加', icon: Icons.add_rounded),
-    _PlaceholderPage(title: '分析', icon: Icons.analytics_rounded),
-    _PlaceholderPage(title: '设置', icon: Icons.settings_rounded),
+  static const _pages = [
+    DashboardScreen(),
+    HistoryScreen(),
+    AddBetScreen(),
+    AnalyticsScreen(),
+    SettingsScreen(),
   ];
 
   @override
@@ -123,48 +154,6 @@ class _MainShellState extends State<_MainShell> {
           NavigationDestination(icon: Icon(Icons.analytics_rounded), label: '分析'),
           NavigationDestination(icon: Icon(Icons.settings_rounded), label: '设置'),
         ],
-      ),
-    );
-  }
-}
-
-class _PlaceholderPage extends StatelessWidget {
-  final String title;
-  final IconData icon;
-
-  const _PlaceholderPage({required this.title, required this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'LotteryAcct',
-          style: GoogleFonts.spaceGrotesk(
-            fontWeight: FontWeight.w700,
-            color: const Color(0xFFE8ECF4),
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 64, color: const Color(0xFF00E676)),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '即将实现',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ),
       ),
     );
   }
