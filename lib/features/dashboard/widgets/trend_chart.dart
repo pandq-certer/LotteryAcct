@@ -24,7 +24,8 @@ class TrendChart extends StatelessWidget {
     final spots = data.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value.cumulativePnl)).toList();
     final minY = spots.map((s) => s.y).reduce((a, b) => a < b ? a : b);
     final maxY = spots.map((s) => s.y).reduce((a, b) => a > b ? a : b);
-    final padding = (maxY - minY) * 0.15;
+    final range = maxY - minY;
+    final padding = range == 0 ? (maxY == 0 ? 1.0 : (maxY * 0.15).clamp(1, double.infinity)) : range * 0.15;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -58,7 +59,7 @@ class TrendChart extends StatelessWidget {
                 gridData: FlGridData(
                   show: true,
                   drawVerticalLine: false,
-                  horizontalInterval: (maxY - minY + padding * 2) / 4,
+                  horizontalInterval: ((range + padding * 2) / 4).clamp(0.01, double.infinity),
                   getDrawingHorizontalLine: (value) => FlLine(
                     color: const Color(0x08FFFFFF),
                     strokeWidth: 1,
