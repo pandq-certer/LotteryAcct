@@ -14,7 +14,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   bool _loading = false;
+  bool _isSignUp = false;
   String? _error;
+  String? _success;
 
   Future<void> _signIn() async {
     if (_emailCtrl.text.isEmpty || _passCtrl.text.isEmpty) {
@@ -22,7 +24,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       return;
     }
 
-    setState(() { _loading = true; _error = null; });
+    setState(() { _loading = true; _error = null; _success = null; });
 
     try {
       await Supabase.instance.client.auth.signInWithPassword(
@@ -31,9 +33,43 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       );
     } on AuthException catch (e) {
       setState(() {
-        _error = e.message.contains('Invalid login credentials')
-            ? '邮箱或密码错误'
-            : '登录失败，请重试';
+        _error = 'Auth错误: ${e.message}';
+      });
+    } catch (e) {
+      setState(() {
+        _error = '错误: $e';
+      });
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _signUp() async {
+    if (_emailCtrl.text.isEmpty || _passCtrl.text.isEmpty) {
+      setState(() => _error = '请输入邮箱和密码');
+      return;
+    }
+    if (_passCtrl.text.length < 6) {
+      setState(() => _error = '密码至少6位');
+      return;
+    }
+
+    setState(() { _loading = true; _error = null; _success = null; });
+
+    try {
+      await Supabase.instance.client.auth.signUp(
+        email: _emailCtrl.text.trim(),
+        password: _passCtrl.text,
+      );
+      setState(() {
+        _isSignUp = false;
+        _success = '注册成功，请登录';
+      });
+    } on AuthException catch (e) {
+      setState(() {
+        _error = e.message.contains('already registered')
+            ? '该邮箱已注册'
+            : '注册失败，请重试';
       });
     } catch (_) {
       setState(() => _error = '网络错误，请检查连接');
@@ -150,6 +186,17 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
               ),
               const SizedBox(height: 8),
 
+              // Success
+              if (_success != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    _success!,
+                    style: const TextStyle(color: Color(0xFF00E676), fontSize: 13),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+
               // Error
               if (_error != null)
                 Padding(
@@ -161,11 +208,11 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   ),
                 ),
 
-              // Login button
+              // Submit button
               SizedBox(
                 height: 48,
                 child: ElevatedButton(
-                  onPressed: _loading ? null : _signIn,
+                  onPressed: _loading ? null : (_isSignUp ? _signUp : _signIn),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF00E676),
                     foregroundColor: Colors.black,
@@ -184,7 +231,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                           ),
                         )
                       : Text(
-                          '登录',
+                          _isSignUp ? '注册' : '登录',
                           style: GoogleFonts.notoSansSc(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
@@ -193,12 +240,19 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              Text(
-                '联系管理员创建账号',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: const Color(0xFF4A5568),
-                  fontSize: 12,
+              GestureDetector(
+                onTap: () => setState(() {
+                  _isSignUp = !_isSignUp;
+                  _error = null;
+                  _success = null;
+                }),
+                child: Text(
+                  _isSignUp ? '已有账号？去登录' : '没有账号？去注册',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFF4A5568),
+                    fontSize: 12,
+                  ),
                 ),
               ),
             ],

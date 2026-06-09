@@ -100,9 +100,6 @@ class AnalyticsScreen extends ConsumerWidget {
 
     final items = [
       (BetCategory.football, '足球', const Color(0xFF00E676)),
-      (BetCategory.basketball, '篮球', const Color(0xFFFFAB00)),
-      (BetCategory.tennis, '网球', const Color(0xFF448AFF)),
-      (BetCategory.other, '其他', const Color(0xFFFF3D57)),
     ];
 
     final total = counts.values.fold(0, (a, b) => a + b);
@@ -265,9 +262,9 @@ class AnalyticsScreen extends ConsumerWidget {
     final settled = records.where((r) => r.status == BetStatus.won || r.status == BetStatus.lost).toList();
     if (settled.isEmpty) return const SizedBox();
 
-    final cats = [BetCategory.football, BetCategory.basketball, BetCategory.tennis];
+    final cats = [BetCategory.football];
     final plays = ['独赢', '让球', '大小分', '串关'];
-    final catLabels = {BetCategory.football: '⚽', BetCategory.basketball: '🏀', BetCategory.tennis: '🎾'};
+    final catLabels = {BetCategory.football: '⚽'};
 
     return Container(
       padding: const EdgeInsets.all(16),

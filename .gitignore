@@ -43,7 +43,14 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+android/build/
 
 # Environment variables
 .env
 .env.*
+
+# Supabase temp
+supabase/.temp/
+
+# GStack reports
+.gstack/

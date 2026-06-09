@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'features/auth/auth_screen.dart';
 import 'features/dashboard/dashboard_screen.dart';
 import 'features/betting/add_bet_screen.dart';
 import 'features/history/history_screen.dart';
+import 'features/approvals/approval_screen.dart';
 import 'features/analytics/analytics_screen.dart';
-import 'features/settings/settings_screen.dart';
+import 'shared/providers/approval_provider.dart';
+import 'shared/providers/auth_provider.dart';
+
+final tabIndexProvider = StateProvider<int>((ref) => 0);
 
 class LotteryAcctApp extends StatelessWidget {
   const LotteryAcctApp({super.key});
@@ -119,41 +124,166 @@ class _AuthWrapperState extends State<AuthWrapper> {
   }
 }
 
-class _MainShell extends StatefulWidget {
+class _MainShell extends ConsumerStatefulWidget {
   const _MainShell();
 
   @override
-  State<_MainShell> createState() => _MainShellState();
+  ConsumerState<_MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<_MainShell> {
-  int _currentIndex = 0;
-
+class _MainShellState extends ConsumerState<_MainShell> {
   static const _pages = [
     DashboardScreen(),
     HistoryScreen(),
     AddBetScreen(),
+    ApprovalScreen(),
     AnalyticsScreen(),
-    SettingsScreen(),
   ];
 
   @override
   Widget build(BuildContext context) {
+    final currentIndex = ref.watch(tabIndexProvider);
+    final pendingAsync = ref.watch(pendingApprovalsProvider);
+    final userId = ref.watch(currentUserProvider)?.id;
+    final pendingCount = pendingAsync.whenOrNull(
+      data: (d) => d.where((r) => r.requestedBy != userId).length,
+    ) ?? 0;
+
     return Scaffold(
-      body: _pages[_currentIndex],
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (i) => setState(() => _currentIndex = i),
-        backgroundColor: const Color(0xDD06090F),
-        indicatorColor: const Color(0x1A00E676),
-        height: 64,
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.dashboard_rounded), label: '首页'),
-          NavigationDestination(icon: Icon(Icons.history_rounded), label: '记录'),
-          NavigationDestination(icon: Icon(Icons.add_circle_rounded), label: '添加'),
-          NavigationDestination(icon: Icon(Icons.analytics_rounded), label: '分析'),
-          NavigationDestination(icon: Icon(Icons.settings_rounded), label: '设置'),
+      body: _pages[currentIndex],
+      bottomNavigationBar: _buildBottomNav(pendingCount, currentIndex),
+    );
+  }
+
+  Widget _buildBottomNav(int pendingCount, int currentIndex) {
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          height: 64 + bottomPadding,
+          padding: EdgeInsets.only(bottom: bottomPadding),
+          decoration: const BoxDecoration(
+            color: Color(0xFF0B1221),
+            border: Border(
+              top: BorderSide(color: Color(0x15FFFFFF), width: 0.5),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              children: [
+                _navItem(0, Icons.dashboard_rounded, '首页', currentIndex),
+                _navItem(1, Icons.history_rounded, '记录', currentIndex),
+                const SizedBox(width: 56),
+                _navItem(
+                  3,
+                  Icons.fact_check_rounded,
+                  '审批',
+                  currentIndex,
+                  badgeCount: pendingCount,
+                ),
+                _navItem(4, Icons.analytics_rounded, '分析', currentIndex),
+              ],
+            ),
+          ),
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          top: -20,
+          child: Center(
+            child: GestureDetector(
+              onTap: () => ref.read(tabIndexProvider.notifier).state = 2,
+              child: _addFab(currentIndex),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _navItem(int index, IconData icon, String label, int currentIndex,
+      {int badgeCount = 0}) {
+    final selected = currentIndex == index;
+    final color =
+        selected ? const Color(0xFF00E676) : const Color(0xFF5A6578);
+
+    return Expanded(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => ref.read(tabIndexProvider.notifier).state = index,
+        child: SizedBox(
+          height: 56,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(
+                height: 24,
+                child: badgeCount > 0
+                    ? Badge(
+                        label: Text('$badgeCount',
+                            style: const TextStyle(fontSize: 10)),
+                        child: Icon(icon, color: color, size: 22),
+                      )
+                    : Icon(icon, color: color, size: 22),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: color,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                ),
+              ),
+              const SizedBox(height: 3),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeInOut,
+                width: selected ? 16 : 0,
+                height: 2.5,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00E676),
+                  borderRadius: BorderRadius.circular(1.5),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _addFab(int currentIndex) {
+    final selected = currentIndex == 2;
+
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF00E676), Color(0xFF00C853)],
+        ),
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0x5900E676),
+            blurRadius: 16,
+            spreadRadius: 2,
+          ),
         ],
+        border: selected
+            ? Border.all(color: Colors.white24, width: 2)
+            : null,
+      ),
+      child: Icon(
+        Icons.add_rounded,
+        color: selected ? Colors.white : const Color(0xFF06090F),
+        size: 30,
       ),
     );
   }

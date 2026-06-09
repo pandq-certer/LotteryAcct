@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/betting_record.dart';
 import '../models/bet_leg.dart';
 import 'supabase_client_provider.dart';
+import 'approval_provider.dart';
 
 // ── Betting Records ──
 
@@ -13,13 +14,11 @@ class BettingRecordsNotifier extends AsyncNotifier<List<BettingRecord>> {
   @override
   Future<List<BettingRecord>> build() async {
     final client = ref.read(supabaseClientProvider);
-    final userId = client.auth.currentUser?.id;
-    if (userId == null) return [];
+    if (client.auth.currentUser == null) return [];
 
     final data = await client
         .from('betting_records')
         .select()
-        .eq('user_id', userId)
         .order('created_at', ascending: false);
 
     return data.map((e) => BettingRecord.fromJson(e)).toList();
@@ -30,6 +29,7 @@ class BettingRecordsNotifier extends AsyncNotifier<List<BettingRecord>> {
     required BetCategory category,
     String? matchName,
     required String playType,
+    String betSelection = '',
     required double odds,
     required double stake,
     String note = '',
@@ -40,15 +40,17 @@ class BettingRecordsNotifier extends AsyncNotifier<List<BettingRecord>> {
     final userId = client.auth.currentUser!.id;
 
     final payload = {
-      'user_id': userId,
       'bet_type': betType.name,
       'category': category.name,
       'match_name': matchName,
       'play_type': playType,
+      'bet_selection': betSelection,
       'odds': odds,
       'stake': stake,
       'note': note,
       'ticket_image_url': ticketImageUrl,
+      'user_id': userId,
+      'status': 'pending',
     };
 
     final data = await client.from('betting_records').insert(payload).select().single();
@@ -68,22 +70,83 @@ class BettingRecordsNotifier extends AsyncNotifier<List<BettingRecord>> {
     return recordId;
   }
 
+  /// Batch create records from OCR results
+  Future<int> batchCreateRecords(List<({
+    BetType betType,
+    String? matchName,
+    String playType,
+    String betSelection,
+    double odds,
+    double stake,
+    String? ticketImageUrl,
+    List<({String matchName, String playType, double odds})>? legs,
+  })> records) async {
+    var count = 0;
+    for (final r in records) {
+      try {
+        await createRecord(
+          betType: r.betType,
+          category: BetCategory.football,
+          matchName: r.matchName,
+          playType: r.playType,
+          betSelection: r.betSelection,
+          odds: r.odds,
+          stake: r.stake,
+          ticketImageUrl: r.ticketImageUrl,
+          legs: r.legs,
+        );
+        count++;
+      } catch (_) {}
+    }
+    ref.invalidateSelf();
+    return count;
+  }
+
   Future<void> settleRecord(String recordId, double resultAmount, BetStatus status) async {
     final client = ref.read(supabaseClientProvider);
-    await client.from('betting_records').update({
-      'result_amount': resultAmount,
-      'status': status.name,
-      'settled_at': DateTime.now().toIso8601String(),
-    }).eq('id', recordId);
+    final userId = client.auth.currentUser!.id;
+    final notifier = ref.read(approvalNotifierProvider.notifier);
+
+    await notifier.requestSettle(
+      recordId: recordId,
+      resultAmount: resultAmount,
+      status: status == BetStatus.won ? 'won' : 'lost',
+      userId: userId,
+    );
     ref.invalidateSelf();
   }
 
-  Future<void> deleteRecord(String recordId) async {
+  Future<void> deleteRecord(String recordId, {bool skipApproval = false}) async {
     final client = ref.read(supabaseClientProvider);
-    await client.from('betting_records').delete().eq('id', recordId);
+    final userId = client.auth.currentUser!.id;
+
+    if (skipApproval) {
+      // Also cancel any pending approval request for this record
+      try {
+        await client.from('approval_requests').delete().eq('record_id', recordId).eq('status', 'pending');
+      } catch (_) {}
+      await client.from('betting_records').delete().eq('id', recordId);
+    } else {
+      final notifier = ref.read(approvalNotifierProvider.notifier);
+      await notifier.requestDelete(recordId: recordId, userId: userId);
+    }
     ref.invalidateSelf();
+    ref.invalidate(pendingApprovalMapProvider);
   }
 }
+
+// ── Single Record (fallback for old approval payloads) ──
+
+final bettingRecordByIdProvider = FutureProvider.family<BettingRecord?, String>((ref, recordId) async {
+  final client = ref.read(supabaseClientProvider);
+  final data = await client
+      .from('betting_records')
+      .select()
+      .eq('id', recordId)
+      .maybeSingle();
+  if (data == null) return null;
+  return BettingRecord.fromJson(data);
+});
 
 // ── Bet Legs ──
 
@@ -133,13 +196,11 @@ class PnlSummary {
 
 final pnlSummaryProvider = FutureProvider<PnlSummary?>((ref) async {
   final client = ref.read(supabaseClientProvider);
-  final userId = client.auth.currentUser?.id;
-  if (userId == null) return null;
+  if (client.auth.currentUser == null) return null;
 
   final data = await client
-      .from('user_pnl_summary')
+      .from('combined_pnl_summary')
       .select()
-      .eq('user_id', userId)
       .maybeSingle();
 
   if (data == null) {
@@ -171,13 +232,11 @@ class DailyPnl {
 
 final dailyPnlProvider = FutureProvider<List<DailyPnl>>((ref) async {
   final client = ref.read(supabaseClientProvider);
-  final userId = client.auth.currentUser?.id;
-  if (userId == null) return [];
+  if (client.auth.currentUser == null) return [];
 
   final data = await client
       .from('daily_pnl_trend')
       .select()
-      .eq('user_id', userId)
       .order('bet_date', ascending: true);
 
   return data.map((e) => DailyPnl.fromJson(e)).toList();

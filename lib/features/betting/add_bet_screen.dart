@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../shared/models/betting_record.dart';
 import '../../shared/providers/betting_provider.dart';
 import '../../shared/services/ocr_service.dart';
@@ -20,22 +21,18 @@ class _AddBetScreenState extends ConsumerState<AddBetScreen> {
   final _oddsCtrl = TextEditingController();
   final _stakeCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
+  final _selectionCtrl = TextEditingController();
 
   BetType _betType = BetType.single;
-  BetCategory _category = BetCategory.football;
+  final _category = BetCategory.football;
   String _playType = '独赢';
   bool _loading = false;
+  bool _ocrLoading = false;
+  String? _pendingImageUrl; // URL of uploaded ticket image from last OCR
 
   final List<_ParlayLegUi> _parlayLegs = [];
 
   static const _playTypes = ['独赢', '让球', '大小分', '波胆', '半全场'];
-  static const _categories = [
-    (BetCategory.football, '⚽ 足球'),
-    (BetCategory.basketball, '🏀 篮球'),
-    (BetCategory.tennis, '🎾 网球'),
-    (BetCategory.other, '🎯 其他'),
-  ];
-
   @override
   void initState() {
     super.initState();
@@ -49,6 +46,7 @@ class _AddBetScreenState extends ConsumerState<AddBetScreen> {
     _oddsCtrl.dispose();
     _stakeCtrl.dispose();
     _noteCtrl.dispose();
+    _selectionCtrl.dispose();
     for (final leg in _parlayLegs) {
       leg.matchCtrl.dispose();
       leg.oddsCtrl.dispose();
@@ -57,58 +55,213 @@ class _AddBetScreenState extends ConsumerState<AddBetScreen> {
   }
 
   Future<void> _pickImage() async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: const Color(0xFF111A2E),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: Color(0xFF00E676)),
+              title: const Text('拍照识别'),
+              onTap: () => Navigator.pop(ctx, 'camera'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library, color: Color(0xFF00E676)),
+              title: const Text('从相册选择'),
+              onTap: () => Navigator.pop(ctx, 'gallery'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.collections, color: Color(0xFF00E676)),
+              title: const Text('批量选择（多张票据）'),
+              onTap: () => Navigator.pop(ctx, 'multi'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (action == null) return;
+
+    if (action == 'multi') {
+      _batchPick();
+      return;
+    }
+
+    final source = action == 'camera' ? ImageSource.camera : ImageSource.gallery;
     final picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.camera, maxWidth: 1024);
+    final image = await picker.pickImage(source: source, maxWidth: 1024);
     if (image == null) return;
 
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('正在识别...'), backgroundColor: Color(0xFF111A2E), duration: Duration(seconds: 5)),
-    );
+    setState(() => _ocrLoading = true);
 
     try {
       final bytes = await File(image.path).readAsBytes();
       final base64Str = base64Encode(bytes);
       final ocr = ref.read(ocrServiceProvider);
-      final result = await ocr.scanTicket(base64Str);
+      final results = await ocr.scanTicket(base64Str);
+
+      // Upload image to storage in parallel
+      final imageUrl = await _uploadTicketImage(base64Str);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      setState(() {
+        _ocrLoading = false;
+        _pendingImageUrl = imageUrl;
+      });
 
-      // Auto-fill form
-      if (result.matchName != null) _matchCtrl.text = result.matchName!;
-      if (result.odds != null) _oddsCtrl.text = result.odds.toString();
-      if (result.stake != null) _stakeCtrl.text = result.stake.toString();
-      if (result.playType.isNotEmpty && _playTypes.contains(result.playType)) {
-        _playType = result.playType;
+      if (results.length == 1) {
+        _fillForm(results.first);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('识别成功，已自动填充'), backgroundColor: Color(0xFF00C853), behavior: SnackBarBehavior.floating),
+        );
+      } else if (results.length > 1) {
+        _showBatchResults(results);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('未识别到票据，请手动填写'), backgroundColor: Color(0xFFFFAB00)),
+        );
       }
-      final cat = BetCategory.values.where((c) => c.name == result.category).firstOrNull;
-      if (cat != null) _category = cat;
-      if (result.betType == 'parlay') {
-        _betType = BetType.parlay;
-        if (result.legs != null) {
-          for (final leg in result.legs!) {
-            final ui = _ParlayLegUi();
-            ui.matchCtrl.text = leg.matchName;
-            ui.oddsCtrl.text = leg.odds.toString();
-            _parlayLegs.add(ui);
-          }
-        }
-      }
-
-      setState(() {});
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('✅ 识别成功，已自动填充'), backgroundColor: Color(0xFF00C853), behavior: SnackBarBehavior.floating),
-      );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      setState(() => _ocrLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('识别失败，请手动填写'), backgroundColor: Color(0xFFFFAB00)),
       );
     }
+  }
+
+  void _fillForm(OcrResult result) {
+    if (result.matchName != null) _matchCtrl.text = result.matchName!;
+    if (result.odds != null) _oddsCtrl.text = result.odds.toString();
+    if (result.stake != null) _stakeCtrl.text = result.stake.toString();
+    if (result.betSelection.isNotEmpty) _selectionCtrl.text = result.betSelection;
+    if (result.playType.isNotEmpty && _playTypes.contains(result.playType)) {
+      _playType = result.playType;
+    }
+    if (result.betType == 'parlay') {
+      _betType = BetType.parlay;
+      if (result.legs != null && result.legs!.isNotEmpty) {
+        _parlayLegs.removeWhere((ui) => ui.matchCtrl.text.trim().isEmpty && ui.oddsCtrl.text.trim().isEmpty);
+        for (final leg in result.legs!) {
+          final ui = _ParlayLegUi();
+          ui.matchCtrl.text = leg.matchName;
+          ui.oddsCtrl.text = leg.odds.toString();
+          _parlayLegs.add(ui);
+        }
+      }
+      setState(() {});
+    }
+  }
+
+  Future<void> _batchPick() async {
+    final picker = ImagePicker();
+    final images = await picker.pickMultiImage(imageQuality: 80);
+    if (images.isEmpty) return;
+    if (!mounted) return;
+
+    // Show progress dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _OcrProgressDialog(total: images.length),
+    );
+
+    final ocr = ref.read(ocrServiceProvider);
+    final allResults = <OcrResult>[];
+    final allImageUrls = <String?>[];
+    var errors = 0;
+
+    for (var i = 0; i < images.length; i++) {
+      if (!mounted) break;
+      _updateProgress(context, i + 1, images.length);
+
+      try {
+        final bytes = await File(images[i].path).readAsBytes();
+        final base64Str = base64Encode(bytes);
+        final results = await ocr.scanTicket(base64Str);
+        final url = await _uploadTicketImage(base64Str);
+        for (var j = 0; j < results.length; j++) {
+          allImageUrls.add(url);
+        }
+        allResults.addAll(results);
+      } catch (_) {
+        errors++;
+      }
+    }
+
+    if (!mounted) return;
+    Navigator.of(context).pop(); // Close progress dialog
+
+    if (allResults.isNotEmpty) {
+      _showBatchResults(allResults, errors: errors, imageUrls: allImageUrls);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('未识别到任何票据'), backgroundColor: Color(0xFFFFAB00)),
+      );
+    }
+  }
+
+  void _updateProgress(BuildContext context, int current, int total) {
+    // Find the state in the progress dialog and update it
+    final state = context.findAncestorStateOfType<_OcrProgressState>();
+    state?.update(current, total);
+  }
+
+  void _showBatchResults(List<OcrResult> results, {int errors = 0, List<String?>? imageUrls}) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF0C1220),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => _BatchResultSheet(
+        results: results,
+        errors: errors,
+        onConfirm: () async {
+          Navigator.pop(ctx);
+          final validResults = results.where((r) => r.odds != null && r.stake != null).toList();
+          final records = validResults.asMap().entries.map((e) {
+            final r = e.value;
+            final isParlay = r.betType == 'parlay';
+            List<({String matchName, String playType, double odds})>? legs;
+            double odds = r.odds ?? 1.0;
+
+            if (isParlay && r.legs != null && r.legs!.isNotEmpty) {
+              legs = r.legs!.map((l) => (matchName: l.matchName, playType: '', odds: l.odds)).toList();
+              odds = legs.fold<double>(1.0, (acc, l) => acc * l.odds);
+            }
+
+            return (
+              betType: isParlay ? BetType.parlay : BetType.single,
+              matchName: r.matchName,
+              playType: r.playType.isNotEmpty ? r.playType : '独赢',
+              betSelection: r.betSelection,
+              odds: odds,
+              stake: r.stake!,
+              ticketImageUrl: imageUrls != null && e.key < imageUrls.length ? imageUrls[e.key] : null,
+              legs: legs,
+            );
+          }).toList();
+
+          if (records.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('没有有效的票据数据'), backgroundColor: Color(0xFFFFAB00)),
+            );
+            return;
+          }
+
+          final count = await ref.read(bettingRecordsProvider.notifier).batchCreateRecords(records);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('成功创建 $count 条记录'), backgroundColor: const Color(0xFF00C853), behavior: SnackBarBehavior.floating),
+            );
+          }
+        },
+      ),
+    );
   }
 
   Future<void> _submit() async {
@@ -132,23 +285,37 @@ class _AddBetScreenState extends ConsumerState<AddBetScreen> {
     setState(() => _loading = true);
 
     try {
-      final odds = double.parse(_oddsCtrl.text);
-      final stake = double.parse(_stakeCtrl.text);
+      final stake = double.tryParse(_stakeCtrl.text);
+      if (stake == null || stake <= 0) {
+        _showError('请输入有效的投注金额');
+        return;
+      }
 
       if (_betType == BetType.single) {
+        final odds = double.tryParse(_oddsCtrl.text);
+        if (odds == null || odds <= 1) {
+          _showError('请输入有效的赔率（大于 1）');
+          return;
+        }
         await ref.read(bettingRecordsProvider.notifier).createRecord(
               betType: BetType.single,
               category: _category,
               matchName: _matchCtrl.text,
               playType: _playType,
+              betSelection: _selectionCtrl.text,
               odds: odds,
               stake: stake,
               note: _noteCtrl.text,
+              ticketImageUrl: _pendingImageUrl,
             );
       } else {
         final legs = _parlayLegs
             .where((l) => l.matchCtrl.text.isNotEmpty && l.oddsCtrl.text.isNotEmpty)
-            .map((l) => (matchName: l.matchCtrl.text, playType: '', odds: double.parse(l.oddsCtrl.text)))
+            .map((l) {
+              final odds = double.tryParse(l.oddsCtrl.text);
+              if (odds == null || odds <= 1) throw FormatException('无效赔率: ${l.oddsCtrl.text}');
+              return (matchName: l.matchCtrl.text, playType: '', odds: odds);
+            })
             .toList();
 
         // Parlay odds = product of all legs
@@ -161,6 +328,7 @@ class _AddBetScreenState extends ConsumerState<AddBetScreen> {
               odds: combinedOdds,
               stake: stake,
               note: _noteCtrl.text,
+              ticketImageUrl: _pendingImageUrl,
               legs: legs,
             );
       }
@@ -187,6 +355,8 @@ class _AddBetScreenState extends ConsumerState<AddBetScreen> {
     _oddsCtrl.clear();
     _stakeCtrl.clear();
     _noteCtrl.clear();
+    _selectionCtrl.clear();
+    _pendingImageUrl = null;
     for (final leg in _parlayLegs) {
       leg.matchCtrl.clear();
       leg.oddsCtrl.clear();
@@ -197,6 +367,20 @@ class _AddBetScreenState extends ConsumerState<AddBetScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg), backgroundColor: const Color(0xFFFF3D57)),
     );
+  }
+
+  Future<String?> _uploadTicketImage(String base64Str) async {
+    try {
+      final client = Supabase.instance.client;
+      final userId = client.auth.currentUser!.id;
+      final fileName = '$userId/${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final bytes = base64Decode(base64Str);
+      await client.storage.from('tickets').uploadBinary(fileName, bytes,
+          fileOptions: const FileOptions(contentType: 'image/jpeg'));
+      return client.storage.from('tickets').getPublicUrl(fileName);
+    } catch (_) {
+      return null;
+    }
   }
 
   @override
@@ -225,7 +409,7 @@ class _AddBetScreenState extends ConsumerState<AddBetScreen> {
 
             // Photo upload
             GestureDetector(
-              onTap: _pickImage,
+              onTap: _ocrLoading ? null : _pickImage,
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(24),
@@ -234,24 +418,29 @@ class _AddBetScreenState extends ConsumerState<AddBetScreen> {
                   border: Border.all(color: const Color(0x0FFFFFFF), style: BorderStyle.solid),
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: const Column(
-                  children: [
-                    Icon(Icons.camera_alt_outlined, size: 36, color: Color(0xFF4A5568)),
-                    SizedBox(height: 8),
-                    Text('拍照识别彩票', style: TextStyle(fontSize: 13, color: Color(0xFF8A96B0), fontWeight: FontWeight.w500)),
-                    SizedBox(height: 4),
-                    Text('或从相册选择票据图片', style: TextStyle(fontSize: 11, color: Color(0xFF4A5568))),
-                  ],
-                ),
+                child: _ocrLoading
+                    ? const Column(
+                        children: [
+                          SizedBox(
+                            width: 36, height: 36,
+                            child: CircularProgressIndicator(strokeWidth: 3, color: Color(0xFF00E676)),
+                          ),
+                          SizedBox(height: 12),
+                          Text('正在识别票据...', style: TextStyle(fontSize: 13, color: Color(0xFF00E676), fontWeight: FontWeight.w500)),
+                          SizedBox(height: 4),
+                          Text('请稍候', style: TextStyle(fontSize: 11, color: Color(0xFF4A5568))),
+                        ],
+                      )
+                    : const Column(
+                        children: [
+                          Icon(Icons.camera_alt_outlined, size: 36, color: Color(0xFF4A5568)),
+                          SizedBox(height: 8),
+                          Text('拍照识别彩票', style: TextStyle(fontSize: 13, color: Color(0xFF8A96B0), fontWeight: FontWeight.w500)),
+                          SizedBox(height: 4),
+                          Text('或从相册选择票据图片', style: TextStyle(fontSize: 11, color: Color(0xFF4A5568))),
+                        ],
+                      ),
               ),
-            ),
-            const SizedBox(height: 16),
-
-            // Category
-            _buildLabel('赛事类别'),
-            Wrap(
-              spacing: 8,
-              children: _categories.map((c) => _catChip(c.$1 == _category, c.$2, () => setState(() => _category = c.$1))).toList(),
             ),
             const SizedBox(height: 16),
 
@@ -273,6 +462,9 @@ class _AddBetScreenState extends ConsumerState<AddBetScreen> {
                 spacing: 8,
                 children: _playTypes.map((p) => _catChip(_playType == p, p, () => setState(() => _playType = p))).toList(),
               ),
+              const SizedBox(height: 12),
+              _buildLabel('投注方向'),
+              TextField(controller: _selectionCtrl, style: const TextStyle(color: Color(0xFFE8ECF4)), decoration: const InputDecoration(hintText: '如: 主胜、客胜、大2.5、2:1')),
             ],
 
             // Parlay legs
@@ -413,4 +605,148 @@ class _AddBetScreenState extends ConsumerState<AddBetScreen> {
 class _ParlayLegUi {
   final matchCtrl = TextEditingController();
   final oddsCtrl = TextEditingController();
+}
+
+class _OcrProgressDialog extends StatefulWidget {
+  final int total;
+  const _OcrProgressDialog({required this.total});
+
+  @override
+  State<_OcrProgressDialog> createState() => _OcrProgressState();
+}
+
+class _OcrProgressState extends State<_OcrProgressDialog> {
+  int _current = 0;
+
+  void update(int current, int total) {
+    if (mounted) setState(() => _current = current);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 40),
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: const Color(0xFF111A2E),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(
+              width: 36, height: 36,
+              child: CircularProgressIndicator(strokeWidth: 3, color: Color(0xFF00E676)),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '正在识别票据...',
+              style: GoogleFonts.notoSansSc(fontSize: 15, fontWeight: FontWeight.w600, color: const Color(0xFFE8ECF4)),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '$_current / ${widget.total}',
+              style: GoogleFonts.spaceGrotesk(fontSize: 13, color: const Color(0xFF4A5568)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BatchResultSheet extends StatelessWidget {
+  final List<OcrResult> results;
+  final int errors;
+  final VoidCallback onConfirm;
+
+  const _BatchResultSheet({required this.results, required this.errors, required this.onConfirm});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 20),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(width: 36, height: 4, decoration: const BoxDecoration(color: Color(0xFF4A5568), borderRadius: BorderRadius.all(Radius.circular(2)))),
+            const SizedBox(height: 16),
+            const Text('识别结果', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            Text(
+              '共识别 ${results.length} 张票据${errors > 0 ? "，$errors 张失败" : ""}',
+              style: const TextStyle(fontSize: 13, color: Color(0xFF8A96B0)),
+            ),
+            const SizedBox(height: 16),
+            ...results.asMap().entries.map((e) => _resultItem(e.key, e.value)),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                onPressed: onConfirm,
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E676)),
+                child: Text(
+                  '确认录入 ${results.where((r) => r.odds != null && r.stake != null).length} 条记录',
+                  style: GoogleFonts.notoSansSc(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.black),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _resultItem(int index, OcrResult r) {
+    final isValid = r.odds != null && r.stake != null;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF111A2E),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isValid ? const Color(0xFF00E676).withValues(alpha: 0.3) : const Color(0xFFFF3D57).withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 32, height: 32,
+            decoration: BoxDecoration(
+              color: (isValid ? const Color(0xFF00E676) : const Color(0xFFFF3D57)).withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(
+              child: Text(
+                isValid ? '⚽' : '?',
+                style: const TextStyle(fontSize: 14),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  r.displayTitle,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  isValid
+                      ? '${r.betType == 'parlay' ? '串关' : r.playType} · @${r.odds?.toStringAsFixed(2)} · ¥${r.stake?.toStringAsFixed(0)}'
+                      : '数据不完整',
+                  style: TextStyle(fontSize: 11, color: isValid ? const Color(0xFF4A5568) : const Color(0xFFFF3D57)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

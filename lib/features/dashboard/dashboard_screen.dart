@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import '../../../app.dart';
 import '../../shared/providers/betting_provider.dart';
+import '../../shared/providers/approval_provider.dart';
 import '../../shared/providers/auth_provider.dart';
 import '../../shared/widgets/loading_indicator.dart';
 import '../../shared/widgets/error_banner.dart';
+import '../settings/settings_screen.dart';
 import 'widgets/pnl_card.dart';
 import 'widgets/trend_chart.dart';
 import 'widgets/recent_records.dart';
@@ -19,6 +22,7 @@ class DashboardScreen extends ConsumerWidget {
     final pnlAsync = ref.watch(pnlSummaryProvider);
     final recordsAsync = ref.watch(bettingRecordsProvider);
     final dailyAsync = ref.watch(dailyPnlProvider);
+    final approvalMap = ref.watch(pendingApprovalMapProvider).valueOrNull ?? {};
 
     return Scaffold(
       appBar: AppBar(
@@ -68,6 +72,14 @@ class DashboardScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.notifications_outlined, color: Color(0xFF8A96B0)),
             onPressed: () {},
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings_rounded, color: Color(0xFF8A96B0)),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              );
+            },
           ),
         ],
       ),
@@ -131,7 +143,7 @@ class DashboardScreen extends ConsumerWidget {
                   ],
                 ),
                 TextButton(
-                  onPressed: () {},
+                  onPressed: () => ref.read(tabIndexProvider.notifier).state = 1,
                   child: const Text('查看全部 ›', style: TextStyle(color: Color(0xFF00E676), fontSize: 12)),
                 ),
               ],
@@ -139,7 +151,7 @@ class DashboardScreen extends ConsumerWidget {
             recordsAsync.when(
               loading: () => const LoadingIndicator(),
               error: (e, _) => ErrorBanner(message: '记录加载失败'),
-              data: (records) => RecentRecords(records: records.take(5).toList()),
+              data: (records) => RecentRecords(records: records.take(5).toList(), approvalMap: approvalMap),
             ),
           ],
         ),
